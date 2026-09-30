@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aderência — Gestão PCM</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <main>
+    <div class="card no-print"><div class="linha">
+      <div><label>De</label><input type="date" id="de"></div>
+      <div><label>Até</label><input type="date" id="ate"></div>
+      <div><label>Equipe</label><select id="equipe"><option value="">Todas</option></select></div>
+      <div class="fixo"><button class="pri" id="aplicar">Atualizar</button></div>
+      <div class="fixo"><button id="p7">7 dias</button> <button id="p30">30 dias</button></div>
+    </div></div>
+
+    <div class="kpis" id="kpis"></div>
+    <div class="graficos">
+      <div class="card"><h2>Consolidado por equipe</h2><div class="graf"><canvas id="gEquipe"></canvas></div></div>
+      <div class="card"><h2>Visão individual</h2><div class="graf"><canvas id="gColab"></canvas></div></div>
+      <div class="card"><h2>Aderência diária</h2><div class="graf"><canvas id="gDia"></canvas></div></div>
+      <div class="card"><h2>Composição do período</h2><div class="graf"><canvas id="gPizza"></canvas></div></div>
+    </div>
+    <div class="card" style="overflow-x:auto"><h2>Detalhamento</h2><table id="tab"></table></div>
+
+    <div class="card"><h2>Relatório de turno por equipe</h2>
+      <div class="linha no-print"><div><label>Data</label><input type="date" id="rdata"></div><div class="fixo"><button id="rbtn">Ver</button> <button id="rimp">Imprimir</button></div></div>
+      <div id="rel"></div>
+    </div>
+  </main>
+  <script src="js/common.js"></script>
+  <script src="vendor/chart.umd.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
