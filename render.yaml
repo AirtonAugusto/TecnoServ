@@ -1,0 +1,27 @@
+# Blueprint do Render: cria o serviço Node do sistema PCM com disco persistente.
+services:
+  - type: web
+    name: tecnoserv-pcm
+    runtime: node
+    rootDir: pcm
+    plan: starter            # disco persistente exige plano pago
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: TZ
+        value: America/Sao_Paulo
+      - key: DATA_DIR
+        value: /data
+      - key: STORAGE
+        value: json
+      - key: GESTAO_SENHA   # você informa a senha da ADM ao criar o serviço
+        sync: false
+      - key: SESSION_SECRET # gerado automaticamente
+        generateValue: true
+    disk:
+      name: pcm-dados
+      mountPath: /data
+      sizeGB: 1
