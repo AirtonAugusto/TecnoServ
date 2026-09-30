@@ -4,7 +4,8 @@ Aplicação web (Node.js + Express, front-end em HTML/JS puro) que substitui os 
 
 | Tela | URL | Acesso |
 |---|---|---|
-| 1. Apontamento do colaborador | `/` | Livre (celular/PC) |
+| Início (escolha ADM ou OPERACIONAL) | `/` | Livre |
+| 1. OPERACIONAL: apontamento do colaborador | `/operacional.html` | Livre (celular/PC) |
 | 2. Dashboard de aderência + relatório de turno por equipe | `/dashboard.html` | Senha da gestão |
 | 3. Programação semanal (3 semanas) | `/calendario.html` | Senha da gestão |
 | Cadastro de equipes/colaboradores | `/cadastros.html` | Senha da gestão |

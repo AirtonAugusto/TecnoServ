@@ -101,3 +101,22 @@ table.cal td.sobre { background: var(--acc-claro); }
 td:hover .add { opacity: 1; }
 .nav-sem { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
 @media print { header.top, .nav-sem, .no-print { display: none !important; } body { background: #fff; } }
+
+/* ---------- Marca / tela inicial ---------- */
+a.marca { display: flex; align-items: center; background: var(--pri); border-radius: 8px; padding: 4px 10px; }
+a.marca img { height: 34px; width: auto; display: block; }
+header.top a.marca:hover { background: var(--pri); }
+.inicio { min-height: 100vh; display: flex; flex-direction: column; }
+.inicio .hero { background: linear-gradient(135deg, var(--pri) 0%, var(--pri-2) 100%); color: #fff; text-align: center; padding: 36px 16px 56px; border-bottom: 4px solid var(--acc); }
+.inicio .hero img { width: min(300px, 70vw); height: auto; }
+.inicio .hero h1 { margin: 8px 0 4px; font-size: 1.7rem; }
+.inicio .hero p { margin: 0; opacity: .85; }
+.escolhas { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; max-width: 760px; width: 100%; margin: -34px auto 24px; padding: 0 16px; }
+.escolha { background: var(--card); border: 1px solid var(--brd); border-top: 5px solid var(--acc); border-radius: 14px; padding: 26px 20px; text-align: center; text-decoration: none; color: var(--txt); box-shadow: 0 6px 18px rgba(10,45,92,.12); transition: transform .12s, box-shadow .12s; }
+.escolha:hover, .escolha:focus-visible { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(10,45,92,.18); outline: none; }
+.escolha.adm { border-top-color: var(--pri); }
+.escolha .ico { font-size: 2.6rem; line-height: 1; }
+.escolha h2 { margin: 10px 0 6px; font-size: 1.5rem; letter-spacing: 1px; }
+.escolha p { margin: 0; color: var(--mut); font-size: .95rem; }
+.escolha .go { display: inline-block; margin-top: 14px; padding: 8px 18px; border-radius: 8px; background: var(--pri); color: #fff; font-weight: 600; }
+.inicio footer { margin-top: auto; text-align: center; color: var(--mut); font-size: .85rem; padding: 14px; }

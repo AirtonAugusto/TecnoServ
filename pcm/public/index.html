@@ -3,21 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Apontamento de turno</title>
+  <title>Sistema PCM</title>
   <link rel="stylesheet" href="css/app.css">
 </head>
-<body>
-  <header class="top"><h1>Apontamento de turno</h1><nav></nav><a href="/dashboard.html" class="no-print">Gestão</a></header>
-  <main class="estreito">
-    <div class="card">
-      <label for="colab">Quem é você?</label>
-      <select id="colab"></select>
-      <label for="data">Data do turno</label>
-      <select id="data"></select>
-    </div>
-    <div id="conteudo"></div>
-  </main>
-  <script src="js/common.js"></script>
-  <script src="js/colaborador.js"></script>
+<body class="inicio">
+  <section class="hero">
+    <img src="img/logo-anglo.png" alt="Anglo American">
+    <h1>Sistema PCM</h1>
+    <p>Planejamento e Controle de Manutenção</p>
+  </section>
+  <nav class="escolhas" aria-label="Selecione o perfil">
+    <a class="escolha" href="operacional.html">
+      <div class="ico">🛠️</div><h2>OPERACIONAL</h2>
+      <p>Apontamento do turno: status das atividades, observações e fotos.</p>
+      <span class="go">Entrar</span>
+    </a>
+    <a class="escolha adm" href="dashboard.html">
+      <div class="ico">📊</div><h2>ADM</h2>
+      <p>Aderência, relatórios por equipe, programação semanal e cadastros. Acesso com senha.</p>
+      <span class="go">Entrar</span>
+    </a>
+  </nav>
+  <footer>Anglo American · PCM</footer>
 </body>
 </html>

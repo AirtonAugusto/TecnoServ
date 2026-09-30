@@ -34,13 +34,13 @@ function modal(html) {
 function cabecalhoGestao(ativa) {
   const links = [['dashboard.html', 'Aderência'], ['calendario.html', 'Programação'], ['cadastros.html', 'Cadastros']];
   const h = document.createElement('header'); h.className = 'top';
-  h.innerHTML = `<h1>PCM · Gestão</h1><nav>${links.map(([u, n]) => `<a href="${u}" class="${u === ativa ? 'on' : ''}">${n}</a>`).join('')}<a href="/">Tela do colaborador</a></nav><button id="sair" class="peq">Sair</button>`;
+  h.innerHTML = `<a class="marca" href="/"><img src="img/logo-anglo.png" alt="Anglo American"></a><h1>ADM · PCM</h1><nav>${links.map(([u, n]) => `<a href="${u}" class="${u === ativa ? 'on' : ''}">${n}</a>`).join('')}<a href="/">Início</a></nav><button id="sair" class="peq">Sair</button>`;
   document.body.prepend(h);
   $('#sair').onclick = async () => { await api('POST', '/api/auth/logout'); location.reload(); };
 }
 function pedirLogin() {
   if ($('#login-ov')) return;
-  const o = modal(`<h2>Acesso restrito — Gestão/PCM</h2><form id="lf"><label>Senha</label><input type="password" id="senha" autocomplete="current-password" autofocus><p class="mut" id="lerro" style="color:var(--vermelho)"></p><div class="acoes"><a class="btn" href="/">Voltar</a><button class="pri">Entrar</button></div></form>`);
+  const o = modal(`<h2>Acesso restrito — ADM</h2><form id="lf"><label>Senha</label><input type="password" id="senha" autocomplete="current-password" autofocus><p class="mut" id="lerro" style="color:var(--vermelho)"></p><div class="acoes"><a class="btn" href="/">Voltar ao início</a><button class="pri">Entrar</button></div></form>`);
   o.id = 'login-ov';
   $('#lf').onsubmit = async e => {
     e.preventDefault();
