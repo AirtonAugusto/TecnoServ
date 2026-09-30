@@ -17,13 +17,12 @@
     </div></div>
 
     <div class="kpis" id="kpis"></div>
-    <div class="graficos">
-      <div class="card"><h2>Consolidado por equipe</h2><div class="graf"><canvas id="gEquipe"></canvas></div></div>
-      <div class="card"><h2>Visão individual</h2><div class="graf"><canvas id="gColab"></canvas></div></div>
-      <div class="card"><h2>Aderência diária</h2><div class="graf"><canvas id="gDia"></canvas></div></div>
-      <div class="card"><h2>Composição do período</h2><div class="graf"><canvas id="gPizza"></canvas></div></div>
+    <div class="grid2">
+      <div class="card"><h2>Aderência por equipe</h2><p class="sub">% das atividades planejadas no período, ordenado da maior para a menor aderência</p><div class="graf" id="wEquipe"><canvas id="gEquipe"></canvas></div></div>
+      <div class="card"><h2>Evolução diária da aderência</h2><p class="sub">% de atividades concluídas em relação às planejadas de cada dia</p><div class="graf" id="wDia" style="height:280px"><canvas id="gDia"></canvas></div></div>
     </div>
-    <div class="card" style="overflow-x:auto"><h2>Detalhamento</h2><table id="tab"></table></div>
+    <div class="card"><h2>Aderência por colaborador</h2><p class="sub">% das atividades planejadas no período · o número à direita é a aderência (concluídas)</p><div class="graf" id="wColab"><canvas id="gColab"></canvas></div></div>
+    <div class="card" style="overflow-x:auto"><h2>Detalhamento em tabela</h2><p class="sub">Os mesmos dados dos gráficos, com os números absolutos</p><table id="tab"></table></div>
 
     <div class="card"><h2>Relatório de turno por equipe</h2>
       <div class="linha no-print"><div><label>Data</label><input type="date" id="rdata"></div><div class="fixo"><button id="rbtn">Ver</button> <button id="rimp">Imprimir</button></div></div>
