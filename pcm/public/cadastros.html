@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cadastros — Gestão PCM</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <main>
+    <div class="card"><h2>Equipes</h2>
+      <form id="fe" class="linha"><div><input id="eq-nome" placeholder="Nome da equipe (ex.: Mecânica - Turno A)" required></div><div class="fixo"><button class="pri">Adicionar</button></div></form>
+      <table id="te"></table></div>
+    <div class="card"><h2>Colaboradores</h2>
+      <form id="fc" class="linha"><div><input id="co-nome" placeholder="Nome do colaborador" required></div><div><select id="co-eq"></select></div><div class="fixo"><button class="pri">Adicionar</button></div></form>
+      <table id="tc"></table></div>
+  </main>
+  <script src="js/common.js"></script>
+  <script src="js/cadastros.js"></script>
+</body>
+</html>

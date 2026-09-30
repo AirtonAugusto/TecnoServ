@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aderência — Gestão PCM</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <main>
+    <div class="card no-print"><div class="linha">
+      <div><label>De</label><input type="date" id="de"></div>
+      <div><label>Até</label><input type="date" id="ate"></div>
+      <div><label>Equipe</label><select id="equipe"><option value="">Todas</option></select></div>
+      <div class="fixo"><button class="pri" id="aplicar">Atualizar</button></div>
+      <div class="fixo"><button id="p7">7 dias</button> <button id="p30">30 dias</button></div>
+    </div></div>
+
+    <div class="kpis" id="kpis"></div>
+    <div class="grid2">
+      <div class="card"><h2>Aderência por equipe</h2><p class="sub">% das atividades planejadas no período, ordenado da maior para a menor aderência</p><div class="graf" id="wEquipe"><canvas id="gEquipe"></canvas></div></div>
+      <div class="card"><h2>Evolução diária da aderência</h2><p class="sub">% de atividades concluídas em relação às planejadas de cada dia</p><div class="graf" id="wDia" style="height:280px"><canvas id="gDia"></canvas></div></div>
+    </div>
+    <div class="card"><h2>Aderência por colaborador</h2><p class="sub">% das atividades planejadas no período · o número à direita é a aderência (concluídas)</p><div class="graf" id="wColab"><canvas id="gColab"></canvas></div></div>
+    <div class="card" style="overflow-x:auto"><h2>Detalhamento em tabela</h2><p class="sub">Os mesmos dados dos gráficos, com os números absolutos</p><table id="tab"></table></div>
+
+    <div class="card"><h2>Relatório de turno por equipe</h2>
+      <div class="linha no-print"><div><label>Data</label><input type="date" id="rdata"></div><div class="fixo"><button id="rbtn">Ver</button> <button id="rimp">Imprimir</button></div></div>
+      <div id="rel"></div>
+    </div>
+  </main>
+  <script src="js/common.js"></script>
+  <script src="vendor/chart.umd.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
