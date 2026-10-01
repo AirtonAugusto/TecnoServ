@@ -120,13 +120,7 @@ const Sessao = {
 };
 
 /* ---------- chamadas ao servidor ---------- */
-let pendentes = 0;
-function carregando(delta) {
-  pendentes = Math.max(0, pendentes + delta);
-  let b = document.getElementById('barra-carregando');
-  if (!b) { b = document.createElement('div'); b.id = 'barra-carregando'; document.body.appendChild(b); }
-  b.className = pendentes ? 'ativa' : '';
-}
+function carregando() { /* sem barra de carregamento */ }
 
 // Resolve com os dados ou rejeita com Error(mensagem). Sessão da gestão vencida → volta ao login.
 function rpc(metodo, args) {

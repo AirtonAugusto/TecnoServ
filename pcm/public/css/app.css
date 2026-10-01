@@ -160,8 +160,6 @@ header.top a.marca:hover { background: transparent; }
 .escolha .go { display: inline-block; margin-top: 16px; padding: 9px 26px; border-radius: 8px; background: var(--pri); color: #fff; font-weight: 600; letter-spacing: .5px; }
 .inicio footer { margin-top: auto; text-align: center; color: var(--mut); font-size: .85rem; padding: 18px 14px; }
 .inicio footer .dica { font-size: .78rem; opacity: .85; }
-#barra-carregando { position: fixed; top: 0; left: 0; height: 3px; width: 0; background: var(--gold); z-index: 200; opacity: 0; transition: opacity .2s; }
-#barra-carregando.ativa { opacity: 1; width: 70%; transition: width 6s cubic-bezier(.1,.8,.2,1), opacity .2s; }
 
 /* ---------- Assinatura ---------- */
 .assinatura { text-align: center; font-size: .78rem; color: var(--mut); padding: 18px 12px 22px; letter-spacing: .3px; }
