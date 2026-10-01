@@ -23,8 +23,7 @@ Na planilha de dados: **Extensões → Apps Script**.
 ### 3. Propriedades do script (⚙️ → Propriedades do script)
 | Propriedade | Para quê | Obrigatória? |
 |---|---|---|
-| `GESTAO_SENHA` | Senha do perfil PCM / Gestão | **Sim** |
-| `GESTAO_EMAILS` | E-mails autorizados, separados por vírgula (ex.: `ana@empresa.com, joao@empresa.com`). Vazio = qualquer e-mail com a senha certa | Não |
+| `GESTAO_SENHA` | Senha do perfil PCM / Gestão (o acesso é só com a senha, sem e-mail) | **Sim** |
 | `META_ADERENCIA` | Meta exibida no painel, em % (padrão 85) | Não |
 | `SITE_URL` | Endereço do site, para o link da página de status do servidor | Não |
 
@@ -40,20 +39,19 @@ No menu de funções do editor escolha **`preparar`** e clique em **▶ Executar
 
 ## Primeiro uso
 
-1. Abra o site → **PCM / Gestão** → e-mail e a senha de `GESTAO_SENHA`.
-2. **Cadastros:** crie as **equipes** e os **colaboradores**. Cada colaborador precisa de **matrícula** (é com ela que ele entra) e do **regime**:
+1. Abra o site → **PCM / Gestão** → digite a senha de `GESTAO_SENHA`.
+2. **Cadastros:** crie as **equipes** e os **colaboradores** (nome, equipe e **regime**; não há matrícula por enquanto):
    - **Turno** — roda as letras: escolha a **letra B ou C**.
    - **ADM** — não roda turno, não tem letra e tem folga fixa no sábado e domingo.
    - Dá para **Editar**, **Inativar** (tira do apontamento e mantém o histórico) ou **Excluir** de vez (as OS futuras voltam ao backlog e as folgas marcadas somem; o histórico de apontamentos fica).
-   - Colaboradores cadastrados antes desta versão ficam sem matrícula: use **Editar** em cada um.
 3. **Programação:** os colaboradores aparecem **agrupados por letra** (Turno B, Turno C e ADM). Crie as OS (*Nova OS* ou o **+** da célula). OS sem data ficam no **backlog** (coluna da direita); arraste para a grade para programar. Para marcar uma **folga**, arraste o cartão **Folga** (coluna da direita) para o dia de quem vai folgar; para remover, clique no **×** ou arraste de volta. Não dá para marcar folga num dia que já tem OS, nem programar OS num dia de folga.
-4. O colaborador abre o site → **Colaborador** → **matrícula** (o turno vem do cadastro; ele pode trocar se estiver cobrindo outro turno) → marca o status de cada OS, registra extras, anexa fotos e envia. Se esquecer de preencher algo, o sistema avisa com as piadas internas (“malha fina”, “o Poderoso está de olho”). O apelido do supervisor e as frases ficam em `docs/js/core.js` (`APP.supervisor` e `FRASES_MALHA`).
+4. O colaborador abre o site → **Colaborador** → escolhe o **próprio nome** na lista (o turno vem do cadastro; ele pode trocar se estiver cobrindo outro turno) → marca o status de cada OS, registra extras, anexa fotos e envia. Se esquecer de preencher algo, o sistema avisa com as piadas internas (“malha fina”, “o Poderoso está de olho”). O apelido do supervisor e as frases ficam em `docs/js/core.js` (`APP.supervisor` e `FRASES_MALHA`).
 5. **Aderência** mostra os indicadores por Dia, Semana ou Mês, com filtros de equipe, **turno (letra)** e colaborador. **Relatórios** mostra o turno enviado por equipe, com fotos.
 
 ## Como funciona
 
-- **Entrada do colaborador:** matrícula + turno, sem senha. O envio fica vinculado à matrícula e ao turno.
-- **Entrada da gestão:** e-mail + senha (e, se definido, lista `GESTAO_EMAILS`). Sessão de 12 h; 8 senhas erradas bloqueiam por 15 min.
+- **Entrada do colaborador:** escolhe o nome na lista (e o turno, que por padrão vem do cadastro), sem senha. O envio fica vinculado ao nome e ao turno.
+- **Entrada da gestão:** só a senha. Sessão de 12 h; 8 senhas erradas bloqueiam por 15 min.
 - **Status da OS:** *Concluída*, *Iniciada / Parcial*, *Pendente* (exige **motivo + justificativa**) e *Extra* (atividade fora da programação, com tipo **BPF** ou **Corretiva**). Quem não foi apontado vira "sem apontamento".
 - **Indicadores** (período escolhido):
   - **Aderência geral** = concluídas ÷ programadas até hoje.
@@ -64,7 +62,7 @@ No menu de funções do editor escolha **`preparar`** e clique em **▶ Executar
 - **Fotos** ficam privadas no seu Drive e só aparecem para a gestão.
 
 ## Desempenho
-- A tela de apontamento entra com **uma chamada** (matrícula → perfil + tarefas) e a de gestão abre com **uma chamada**.
+- A tela de apontamento entra com **uma chamada** (nome → perfil + tarefas) e a de gestão abre com **uma chamada**.
 - Cache de 6 h das tabelas no servidor, invalidado a cada gravação; troca de equipe/colaborador no painel é instantânea.
 - **Opcional:** acionador por tempo para `manterAtivo` (⏰ Acionadores → Adicionar → *a cada 5 minutos*) reduz a demora do primeiro acesso.
 - O Apps Script tem um piso de cerca de 1–2 s por chamada. Para respostas abaixo de 1 s seria preciso um banco de dados em nuvem (Firebase/Supabase).

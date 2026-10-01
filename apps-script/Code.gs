@@ -4,9 +4,8 @@
  * Fotos: pasta "PCM-Fotos" no Google Drive de quem publicou o app.
  *
  * Configuração (Configurações do projeto > Propriedades do script):
- *   GESTAO_SENHA     = senha da área ADM/PCM (obrigatória)
+ *   GESTAO_SENHA     = senha da área PCM / Gestão (obrigatória; o acesso é só com a senha)
  * Opcionais:
- *   GESTAO_EMAILS    = e-mails autorizados na ADM, separados por vírgula (vazio = qualquer e-mail com a senha certa)
  *   META_ADERENCIA   = meta de aderência em % (padrão 85)
  *   SITE_URL         = endereço do site (aparece no link da página de status deste app)
  * Criadas automaticamente: SESSION_SECRET, FOTOS_FOLDER_ID
@@ -89,6 +88,7 @@ function preparar() {
 function mapaApi_() {
   return {
     'ping': function () { return { ok: true }; },
+    'publico.colaboradores': publicoColaboradores_,
     'publico.entrar': publicoEntrar_,
     'publico.tarefas': publicoTarefas_,
     'publico.enviar': publicoEnviar_,
@@ -342,21 +342,14 @@ function tokenValido_(tok) {
 function authLogin_(a) {
   var senha = props_().getProperty('GESTAO_SENHA');
   exigir_(senha, 'A senha da ADM ainda não foi definida (propriedade GESTAO_SENHA do script).');
-  var email = txt_(a.email, 120).toLowerCase();
-  exigir_(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email), 'Informe um e-mail válido.');
-  var lista = String(props_().getProperty('GESTAO_EMAILS') || '').toLowerCase().split(',')
-    .map(function (x) { return x.trim(); }).filter(function (x) { return x; });
   var c = CacheService.getScriptCache(), falhas = Number(c.get('falhas') || 0);
   exigir_(falhas < 8, 'Muitas tentativas erradas. Aguarde 15 minutos.');
-  var ok = iguais_(a.senha || '', senha) && (!lista.length || lista.indexOf(email) >= 0);
-  if (!ok) {
+  if (!iguais_(a.senha || '', senha)) {
     c.put('falhas', String(falhas + 1), 900);
-    throw erro_('E-mail ou senha incorretos.');
+    throw erro_('Senha incorreta.');
   }
   c.remove('falhas');
-  var primeiro = email.split('@')[0].split(/[._-]/)[0];
-  var nome = primeiro.charAt(0).toUpperCase() + primeiro.slice(1);
-  return { token: emitirToken_(), usuario: { nome: nome, email: email, papel: 'Gestão · PCM' } };
+  return { token: emitirToken_(), usuario: { nome: 'PCM', papel: 'Gestão' } };
 }
 
 /* ======================= OPERACIONAL (colaborador) ======================= */
@@ -381,11 +374,22 @@ function perfil_(c, turno) {
   return { id: c.id, nome: c.nome, equipe: eq ? eq.nome : '', regime: c.regime || 'Turno', letra: c.letra || '', turno: turno || turnoDe_(c) };
 }
 
-/** Entrada do colaborador: matrícula + turno. Devolve o perfil e as tarefas numa única chamada. */
+/** Lista de nomes para a tela de entrada (só colaboradores ativos). */
+function publicoColaboradores_() {
+  var eq = {}; todos_('equipes').forEach(function (e) { eq[e.id] = e.nome; });
+  return todos_('colaboradores').filter(function (c) { return c.ativo; })
+    .map(function (c) { return { id: c.id, nome: c.nome, equipe: eq[c.equipe_id] || '', turno: turnoDe_(c) }; })
+    .sort(function (x, y) { return x.nome.localeCompare(y.nome); });
+}
+
+/** Entrada do colaborador: escolhe o nome (e o turno). Devolve o perfil e as tarefas numa única chamada. */
 function publicoEntrar_(a) {
-  var mat = normMat_(a.matricula); exigir_(mat, 'Informe a matrícula.');
-  var c = todos_('colaboradores').filter(function (x) { return x.ativo && normMat_(x.matricula) === mat; })[0];
-  exigir_(c, 'Matrícula não encontrada. Confira o número ou fale com o PCM.');
+  var c = null;
+  if (a.id) c = colabAtivo_(a.id);
+  else if (normMat_(a.matricula)) { // alternativa opcional, caso a matrícula volte a ser usada
+    c = todos_('colaboradores').filter(function (x) { return x.ativo && normMat_(x.matricula) === normMat_(a.matricula); })[0] || null;
+  }
+  exigir_(c, 'Escolha o seu nome na lista.');
   var turno = TURNOS_.indexOf(a.turno) >= 0 ? a.turno : (turnoDe_(c) || TURNOS_[0]); // vazio = pelo cadastro
   var t = publicoTarefas_({ id: c.id, data: a.data });
   t.perfil.turno = turno;
@@ -513,8 +517,9 @@ function gEquipeExcluir_(a) {
 }
 function gColabSalvar_(a) {
   var nome = txt_(a.nome, 80); exigir_(nome, 'Informe o nome.');
-  var mat = txt_(a.matricula, 20); exigir_(mat, 'Informe a matrícula (é com ela que o colaborador entra).');
-  exigir_(!todos_('colaboradores').some(function (c) { return c.id !== a.id && normMat_(c.matricula) === normMat_(mat); }), 'Já existe um colaborador com esta matrícula.');
+  var existente = a.id ? achar_('colaboradores', a.id) : null;
+  var mat = a.matricula === undefined ? (existente ? existente.matricula : '') : txt_(a.matricula, 20); // matrícula é opcional (por enquanto não é usada)
+  exigir_(!mat || !todos_('colaboradores').some(function (c) { return c.id !== a.id && normMat_(c.matricula) === normMat_(mat); }), 'Já existe um colaborador com esta matrícula.');
   var equipeId = a.equipe_id || '';
   exigir_(!equipeId || achar_('equipes', equipeId), 'Equipe inválida.');
   var regime = REGIMES_.indexOf(a.regime) >= 0 ? a.regime : 'Turno';

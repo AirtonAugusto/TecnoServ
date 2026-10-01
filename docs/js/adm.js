@@ -11,7 +11,7 @@ const Adm = (() => {
     const g = Sessao.gestao();
     let el = $('#adm-conteudo');
     if (!el) {
-      const u = g.usuario || { nome: 'Gestão', papel: 'PCM' };
+      const u = g.usuario || { nome: 'PCM', papel: 'Gestão' };
       app.innerHTML = `
       <div class="shell">
         <aside class="side">

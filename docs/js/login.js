@@ -1,17 +1,41 @@
 'use strict';
-/* ===== Acesso por perfil: Colaborador (matrícula + turno) ou PCM / Gestão (e-mail + senha) ===== */
+/* ===== Acesso por perfil: Colaborador (escolhe o nome) ou PCM / Gestão (só a senha) ===== */
 const Login = (() => {
   let perfil = 'campo';
-  let PRE = null; // entrada antecipada com a matrícula lembrada
+  let nomes = ls.getJSON('pcm_nomes') || null; // lista de colaboradores (guardada para abrir rápido)
+  let carregandoNomes = false;
+  let PRE = null; // entrada antecipada com o último colaborador deste aparelho
+
+  async function buscarNomes() {
+    if (carregandoNomes) return;
+    carregandoNomes = true;
+    try { nomes = await rpc('publico.colaboradores'); ls.setJSON('pcm_nomes', nomes); }
+    catch (e) { if (!nomes) nomes = []; $('#l-erro') && erro(e.message); }
+    finally { carregandoNomes = false; }
+    if (perfil === 'campo' && $('#l-nome')) preencherNomes();
+  }
 
   // Se a pessoa já entrou antes neste aparelho, busca as tarefas enquanto ela lê a tela.
   function prefetch() {
-    const mat = ls.get('pcm_matricula'), turno = ls.get('pcm_turno') || '';
-    if (mat && !PRE) PRE = { mat, turno: turno || '', p: rpc('publico.entrar', { matricula: mat, turno: turno || '' }).catch(() => null) };
+    const id = ls.get('pcm_colab_id'), turno = ls.get('pcm_turno') || '';
+    if (id && !PRE) PRE = { id, turno, p: rpc('publico.entrar', { id, turno }).catch(() => null) };
+    buscarNomes();
+  }
+
+  function opcoesNomes(sel) {
+    if (!nomes) return '<option value="">Carregando nomes…</option>';
+    if (!nomes.length) return '<option value="">Nenhum colaborador cadastrado</option>';
+    return '<option value="">Selecione seu nome…</option>' + nomes.map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.nome)}${c.equipe ? ' — ' + esc(c.equipe) : ''}</option>`).join('');
+  }
+  function preencherNomes() {
+    const s = $('#l-nome'); if (!s) return;
+    const atual = s.value || ls.get('pcm_colab_id') || '';
+    s.innerHTML = opcoesNomes(atual); s.disabled = !nomes || !nomes.length;
+    if (nomes && nomes.some(c => c.id === atual)) s.value = atual;
   }
 
   function html() {
-    const mat = ls.get('pcm_matricula') || '', turno = ls.get('pcm_turno') || '', email = ls.get('pcm_email') || '';
+    const turno = ls.get('pcm_turno') || '', idSalvo = ls.get('pcm_colab_id') || '';
     return `
     <div class="split">
       <section class="hero">
@@ -32,14 +56,13 @@ const Login = (() => {
         </div>
         ${perfil === 'campo' ? `
         <form class="form reveal" id="f-campo" novalidate>
-          <label class="fld">Matrícula<input class="inp" id="l-mat" inputmode="numeric" autocomplete="off" placeholder="Ex.: 102345" value="${esc(mat)}"></label>
+          <label class="fld">Seu nome<select class="inp" id="l-nome" ${nomes && nomes.length ? '' : 'disabled'}>${opcoesNomes(idSalvo)}</select></label>
           <label class="fld">Turno<select class="inp" id="l-turno"><option value="" ${turno === '' ? 'selected' : ''}>Automático (pelo meu cadastro)</option>${TURNOS.map(t => `<option ${t === turno ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
           <div class="erro" id="l-erro" role="alert" hidden></div>
           <button class="btn pri lg" id="l-ok">Entrar no apontamento ${icone('seta')}</button>
-          <p class="nota">Acesso simplificado: sem senha. O relatório fica vinculado à sua matrícula e ao turno.</p>
+          <p class="nota">Acesso simplificado: sem senha. O relatório fica vinculado ao seu nome e ao turno.</p>
         </form>` : `
         <form class="form reveal" id="f-pcm" novalidate>
-          <label class="fld">E-mail corporativo<input class="inp" id="l-email" type="email" autocomplete="username" placeholder="nome@empresa.com" value="${esc(email)}"></label>
           <label class="fld">Senha<input class="inp" id="l-senha" type="password" autocomplete="current-password" placeholder="••••••••"></label>
           <div class="erro" id="l-erro" role="alert" hidden></div>
           <button class="btn pri lg" id="l-ok">Entrar como PCM ${icone('seta')}</button>
@@ -54,16 +77,16 @@ const Login = (() => {
 
   async function entrarCampo(e) {
     e.preventDefault(); erro('');
-    const mat = $('#l-mat').value.trim(), turno = $('#l-turno').value;
-    if (!mat) return erro('Informe a matrícula.');
+    const id = $('#l-nome').value, turno = $('#l-turno').value;
+    if (!id) return erro('Escolha o seu nome na lista.');
     const rotulo = `Entrar no apontamento ${icone('seta')}`;
     ocupado(true);
     try {
       let r = null;
-      if (PRE && PRE.mat === mat && PRE.turno === turno) r = await PRE.p; // já veio da busca antecipada
+      if (PRE && PRE.id === id && PRE.turno === turno) r = await PRE.p; // já veio da busca antecipada
       PRE = null;
-      if (!r) r = await rpc('publico.entrar', { matricula: mat, turno });
-      ls.set('pcm_matricula', mat); ls.set('pcm_turno', turno);
+      if (!r) r = await rpc('publico.entrar', { id, turno });
+      ls.set('pcm_colab_id', id); ls.set('pcm_turno', turno);
       Sessao.entrarColab({ perfil: r.perfil, tarefas: r.tarefas });
       ir('apontamento');
     } catch (err) { ocupado(false, rotulo); erro(err.message); }
@@ -71,13 +94,12 @@ const Login = (() => {
 
   async function entrarPcm(e) {
     e.preventDefault(); erro('');
-    const email = $('#l-email').value.trim(), senha = $('#l-senha').value;
-    if (!email || !senha) return erro('Informe o e-mail e a senha.');
+    const senha = $('#l-senha').value;
+    if (!senha) return erro('Informe a senha.');
     const rotulo = `Entrar como PCM ${icone('seta')}`;
     ocupado(true);
     try {
-      const r = await rpc('auth.login', { email, senha });
-      ls.set('pcm_email', email);
+      const r = await rpc('auth.login', { senha });
       Sessao.entrarGestao({ token: r.token, usuario: r.usuario });
       ir('aderencia');
     } catch (err) { ocupado(false, rotulo); erro(err.message); }
@@ -88,8 +110,8 @@ const Login = (() => {
     app.innerHTML = html();
     $$('[data-perfil]').forEach(b => b.onclick = () => { perfil = b.dataset.perfil; ls.set('pcm_perfil', perfil); mount(); });
     const fc = $('#f-campo'), fp = $('#f-pcm');
-    if (fc) { fc.onsubmit = entrarCampo; $('#l-mat').focus(); }
-    if (fp) { fp.onsubmit = entrarPcm; ($('#l-email').value ? $('#l-senha') : $('#l-email')).focus(); }
+    if (fc) { fc.onsubmit = entrarCampo; $('#l-nome').focus(); }
+    if (fp) { fp.onsubmit = entrarPcm; $('#l-senha').focus(); }
     prefetch();
   }
   return { mount, prefetch, perfilSalvo: () => ls.get('pcm_perfil') || 'campo' };

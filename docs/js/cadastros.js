@@ -18,7 +18,7 @@ const Cad = (() => {
   function linhaColab(c) {
     return `<tr style="${c.ativo ? '' : 'opacity:.5'}">
       <td><span style="display:inline-flex;align-items:center;gap:10px">${avatar(c.nome, c.id, 30, 12)}<b>${esc(c.nome)}</b>${c.ativo ? '' : ' <span class="chip">inativo</span>'}</span></td>
-      <td class="mono">${esc(c.matricula || '—')}</td><td>${esc(nomeEq(c.equipe_id))}</td><td>${esc(rotuloTurno(c))}</td>
+      <td>${esc(nomeEq(c.equipe_id))}</td><td>${esc(rotuloTurno(c))}</td>
       <td style="text-align:right;white-space:nowrap"><button class="btn sm" data-edit="${c.id}" style="min-height:36px">Editar</button>
         ${c.ativo ? `<button class="btn sm" data-inat="${c.id}" style="min-height:36px">Inativar</button>` : `<button class="btn sm" data-ativ="${c.id}" style="min-height:36px">Reativar</button>`}
         <button class="btn perigo sm" data-exc="${c.id}" style="min-height:36px">Excluir</button></td></tr>`;
@@ -36,20 +36,19 @@ const Cad = (() => {
     <section class="cartao bloco"><h2>Colaboradores</h2>
       <form class="linha-f" id="c-fc">
         <label class="fld p" style="flex:2 1 220px">Nome<input class="inp sm" id="c-nome" placeholder="Nome completo" required></label>
-        <label class="fld p" style="flex:1 1 130px">Matrícula<input class="inp sm" id="c-mat" inputmode="numeric" placeholder="Ex.: 102345" required></label>
         <label class="fld p" style="flex:1 1 180px">Equipe<select class="inp sm" id="c-eq">${opcoesEq}</select></label>
         ${camposRegime('c', { regime: 'Turno', letra: 'A' })}
         <button class="btn pri fx">Adicionar</button>
       </form>
-      <p class="nota">A matrícula é o que o colaborador digita para entrar. <b>Turno</b> = roda as letras B ou C. <b>ADM</b> = não roda turno e tem folga fixa no sábado e domingo.</p>
-      <div style="overflow-x:auto"><table class="tab"><tr><th>Colaborador</th><th>Matrícula</th><th>Equipe</th><th>Turno</th><th></th></tr>
-        ${grupos.map(g => `<tr class="grp-l"><td colspan="5">${g.nome} <span>· ${g.lista.length} ${g.lista.length === 1 ? 'pessoa' : 'pessoas'}</span></td></tr>${g.lista.map(linhaColab).join('')}`).join('') || '<tr><td colspan="5" class="nota">Nenhum colaborador cadastrado.</td></tr>'}</table></div>
+      <p class="nota">O colaborador escolhe o próprio nome na tela de entrada. <b>Turno</b> = roda as letras B ou C. <b>ADM</b> = não roda turno e tem folga fixa no sábado e domingo.</p>
+      <div style="overflow-x:auto"><table class="tab"><tr><th>Colaborador</th><th>Equipe</th><th>Turno</th><th></th></tr>
+        ${grupos.map(g => `<tr class="grp-l"><td colspan="4">${g.nome} <span>· ${g.lista.length} ${g.lista.length === 1 ? 'pessoa' : 'pessoas'}</span></td></tr>${g.lista.map(linhaColab).join('')}`).join('') || '<tr><td colspan="4" class="nota">Nenhum colaborador cadastrado.</td></tr>'}</table></div>
     </section>`;
     ligarRegime('c', el);
     $('#c-fe', el).onsubmit = e => { e.preventDefault(); acao(async () => { await rpc('gestao.equipe.salvar', { nome: $('#c-eq-nome', el).value }); }); };
     $('#c-fc', el).onsubmit = e => {
       e.preventDefault();
-      acao(async () => { await rpc('gestao.colaborador.salvar', { nome: $('#c-nome', el).value, matricula: $('#c-mat', el).value, equipe_id: $('#c-eq', el).value, ...valoresRegime('c', el) }); toast('Colaborador adicionado'); });
+      acao(async () => { await rpc('gestao.colaborador.salvar', { nome: $('#c-nome', el).value, equipe_id: $('#c-eq', el).value, ...valoresRegime('c', el) }); toast('Colaborador adicionado'); });
     };
     $$('[data-ren]', el).forEach(b => b.onclick = () => { const e = equipes.find(x => x.id === b.dataset.ren), nome = prompt('Novo nome da equipe:', e.nome); if (nome) acao(() => rpc('gestao.equipe.salvar', { id: e.id, nome })); });
     $$('[data-dele]', el).forEach(b => b.onclick = () => confirm('Excluir esta equipe?') && acao(() => rpc('gestao.equipe.excluir', { id: b.dataset.dele })));
@@ -67,7 +66,6 @@ const Cad = (() => {
     const o = modal(`<form id="e-form" novalidate><div class="tt"><h2>Editar colaborador</h2><button type="button" class="x" id="e-x" aria-label="Fechar">${icone('x')}</button></div>
       <div style="display:flex;flex-direction:column;gap:14px;margin-top:16px">
         <label class="fld p">Nome<input class="inp sm" id="e-nome" value="${esc(c.nome)}"></label>
-        <label class="fld p">Matrícula<input class="inp sm" id="e-mat" inputmode="numeric" value="${esc(c.matricula)}"></label>
         <label class="fld p">Equipe<select class="inp sm" id="e-eq"><option value="">Sem equipe</option>${equipes.map(e => `<option value="${e.id}" ${e.id === c.equipe_id ? 'selected' : ''}>${esc(e.nome)}</option>`).join('')}</select></label>
         <div class="linha-f">${camposRegime('e', c)}</div>
         <div class="erro" id="e-erro" role="alert" hidden></div>
@@ -77,7 +75,7 @@ const Cad = (() => {
     $('#e-x', o).onclick = $('#e-cancel', o).onclick = o.fechar;
     $('#e-form', o).onsubmit = async ev => {
       ev.preventDefault();
-      try { await rpc('gestao.colaborador.salvar', { id: c.id, ativo: c.ativo, nome: $('#e-nome', o).value, matricula: $('#e-mat', o).value, equipe_id: $('#e-eq', o).value, ...valoresRegime('e', o) }); o.fechar(); toast('Colaborador atualizado'); await carregar(); }
+      try { await rpc('gestao.colaborador.salvar', { id: c.id, ativo: c.ativo, nome: $('#e-nome', o).value, equipe_id: $('#e-eq', o).value, ...valoresRegime('e', o) }); o.fechar(); toast('Colaborador atualizado'); await carregar(); }
       catch (e) { const er = $('#e-erro', o); er.hidden = false; er.innerHTML = icone('alerta', 's') + esc(e.message); }
     };
     $('#e-nome', o).focus();
