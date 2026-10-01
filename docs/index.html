@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <base target="_top">
-<title>Sistema PCM — AngloGold Ashanti</title>
+<title>Informe de Turno — AngloGold Ashanti</title>
 <style>
 :root {
   color-scheme: light;
@@ -147,8 +147,8 @@ header.top a.marca:hover { background: var(--pri); }
 .inicio footer { margin-top: auto; text-align: center; color: var(--mut); font-size: .85rem; padding: 14px; }
 #barra-carregando { position: fixed; top: 0; left: 0; height: 3px; width: 0; background: var(--gold); z-index: 200; opacity: 0; transition: opacity .2s; }
 #barra-carregando.ativa { opacity: 1; width: 70%; transition: width 6s cubic-bezier(.1,.8,.2,1), opacity .2s; }
+.inicio footer .dica { font-size: .78rem; opacity: .8; }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -263,7 +263,34 @@ const Tok = {
 
 // Endereço da API (Apps Script publicado como App da Web). Usado quando a página está hospedada fora do Google (GitHub Pages).
 const API_URL = 'https://script.google.com/macros/s/AKfycbycutUqtHnSs8l2U20bnvXI8adnwrhnOfvA2itqfAX9EwVQ8cOKkGgVkU1hratxBuMYdg/exec';
-const NO_GOOGLE = typeof google !== 'undefined' && google.script && google.script.run;
+const NO_GOOGLE = typeof google !== 'undefined' && google.script && google.script.run; // true = aberto dentro do Google
+
+// Armazenamento local simples (não quebra se o navegador bloquear)
+const ls = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignora */ } },
+  getJSON(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+  setJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignora */ } },
+};
+
+// Biblioteca de gráficos: carregada só quando a ADM abre o painel
+let chartP = null;
+function garantirChart() {
+  if (window.Chart) return Promise.resolve();
+  return chartP || (chartP = new Promise((ok, falha) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
+    s.onload = ok;
+    s.onerror = () => { chartP = null; falha(new Error('Não foi possível carregar os gráficos. Verifique a internet.')); };
+    document.head.appendChild(s);
+  }));
+}
+
+// Carregamento antecipado: enquanto a pessoa lê a tela inicial, o servidor já "acorda" e traz nomes e tarefas.
+let PRE = null;
+function prefetchInicio() {
+  if (!PRE) PRE = rpc('publico.inicio', { id: ls.get('pcm_colaborador') || '' }).catch(() => { PRE = null; return null; });
+}
 
 // Barra de carregamento (feedback enquanto o servidor responde)
 let pendentes = 0;
@@ -317,20 +344,28 @@ let estado = null; // { dados, marcas:{atividadeId:status}, extras:[], fotos:[] 
 const chave = 'pcm_colaborador';
 
 async function iniciar() {
-  const lista = await rpc('publico.colaboradores');
-  const sel = $('#colab');
-  sel.innerHTML = '<option value="">Selecione seu nome…</option>' + lista.map(c => `<option value="${c.id}">${esc(c.nome)}${c.equipe ? ' — ' + esc(c.equipe) : ''}</option>`).join('');
-  try { sel.value = localStorage.getItem(chave) || ''; } catch { /* storage bloqueado */ }
-  sel.onchange = () => { try { localStorage.setItem(chave, sel.value); } catch {} carregar(); };
+  const sel = $('#colab'), salvo = ls.get(chave) || '';
+  const montarLista = lista => {
+    const atual = sel.value || salvo;
+    sel.innerHTML = '<option value="">Selecione seu nome…</option>' + lista.map(c => `<option value="${c.id}">${esc(c.nome)}${c.equipe ? ' — ' + esc(c.equipe) : ''}</option>`).join('');
+    sel.value = atual;
+  };
+  const guardada = ls.getJSON('pcm_colabs');
+  if (guardada) montarLista(guardada); // aparece na hora; a lista nova chega logo em seguida
+  sel.onchange = () => { ls.set(chave, sel.value); carregar(); };
   $('#data').onchange = carregar;
-  carregar(true);
+  let r = PRE ? await PRE : null; PRE = null;
+  if (!r) r = await rpc('publico.inicio', { id: salvo });
+  ls.setJSON('pcm_colabs', r.colaboradores);
+  montarLista(r.colaboradores);
+  carregar(true, sel.value === salvo ? r.tarefas : null);
 }
 
-async function carregar(primeira) {
+async function carregar(primeira, pre) {
   const id = $('#colab').value;
   if (!id) { $('#conteudo').innerHTML = '<p class="mut">Escolha seu nome para ver as atividades do dia.</p>'; return; }
   try {
-    const d = await rpc('publico.tarefas', { id, data: $('#data').value || '' });
+    const d = pre || await rpc('publico.tarefas', { id, data: $('#data').value || '' });
     if (!$('#data').options.length || primeira) {
       $('#data').innerHTML = [0, 1, 2].map(n => { const v = addDias(d.hoje, -n); return `<option value="${v}">${n === 0 ? 'Hoje' : n === 1 ? 'Ontem' : 'Anteontem'} — ${fmtDataCompleta(v)}</option>`; }).join('');
       $('#data').value = d.data;
@@ -545,11 +580,15 @@ function linha(serie) {
 }
 
 async function carregar() {
-  const q = new URLSearchParams({ de: $('#de').value, ate: $('#ate').value, equipe_id: $('#equipe').value });
   let m;
   $('main').style.opacity = .6;
-  try { m = await rpc('gestao.aderencia', { de: $('#de').value, ate: $('#ate').value, equipe_id: $('#equipe').value }); } catch (e) { $('main').style.opacity = 1; return toast(e.message, true); }
+  try { [m] = await Promise.all([rpc('gestao.aderencia', { de: $('#de').value, ate: $('#ate').value, equipe_id: $('#equipe').value }), garantirChart()]); }
+  catch (e) { $('main').style.opacity = 1; return toast(e.message, true); }
   $('main').style.opacity = 1;
+  pintarAderencia(m);
+}
+
+function pintarAderencia(m) {
   const g = m.geral;
   const kpi = (cls, cor, rot, val, sub, meter) => `<div class="kpi ${cls}"><span class="rot"><i style="background:${cor}"></i>${rot}</span><b>${pc(val)}</b>${meter ? `<div class="meter" role="img" aria-label="${pc(val)}"><div style="width:${Math.min(100, val)}%"></div></div>` : ''}<span class="sub">${sub}</span></div>`;
   $('#kpis').innerHTML =
@@ -575,6 +614,10 @@ async function carregar() {
 async function relatorio() {
   let r;
   try { r = await rpc('gestao.relatorios', { data: $('#rdata').value, equipe_id: $('#equipe').value }); } catch (e) { return toast(e.message, true); }
+  pintarRelatorio(r);
+}
+
+function pintarRelatorio(r) {
   $('#rel').innerHTML = r.map(t => `<div class="rel-equipe"><h3>${esc(t.equipe)} — ${fmtDataCompleta(t.data)}</h3>
     <div>${['concluidas:concluida:Concluídas', 'iniciadas:iniciada:Iniciadas', 'pendentes:pendente:Pendentes', 'extras:extra:Extras'].map(s => { const [k, cls, n] = s.split(':'); return `<span class="tag ${cls}">${n}: ${t.resumo[k]}</span> `; }).join('')}</div>
     ${t.pendentes_envio.length ? `<p class="mut">Ainda não enviaram: ${t.pendentes_envio.map(esc).join(', ')}</p>` : ''}
@@ -598,13 +641,18 @@ async function relatorio() {
 async function mount() {
   const h = hojeStr();
   $('#ate').value = h; $('#de').value = somar(h, -6); $('#rdata').value = h;
-  const eq = await rpc('gestao.equipes');
-  $('#equipe').insertAdjacentHTML('beforeend', eq.map(e => `<option value="${e.id}">${esc(e.nome)}</option>`).join(''));
   $('#aplicar').onclick = () => { carregar(); relatorio(); };
   $('#p7').onclick = () => { $('#de').value = somar($('#ate').value, -6); carregar(); };
   $('#p30').onclick = () => { $('#de').value = somar($('#ate').value, -29); carregar(); };
   $('#rbtn').onclick = relatorio; $('#rimp').onclick = () => window.print();
-  carregar(); relatorio();
+  // Uma única chamada traz equipes, indicadores e relatório do dia.
+  $('main').style.opacity = .6;
+  try {
+    const [p] = await Promise.all([rpc('gestao.painel', { de: $('#de').value, ate: $('#ate').value, equipe_id: '', rdata: h }), garantirChart()]);
+    $('#equipe').insertAdjacentHTML('beforeend', p.equipes.map(e => `<option value="${e.id}">${esc(e.nome)}</option>`).join(''));
+    $('main').style.opacity = 1;
+    pintarAderencia(p.aderencia); pintarRelatorio(p.relatorios);
+  } catch (e) { $('main').style.opacity = 1; toast(e.message, true); }
 }
 function unmount() { Object.values(graficos).forEach(g => g.destroy()); graficos = {}; }
   return { mount, unmount };
@@ -656,10 +704,12 @@ function ligar() {
       const a = cal.atividades.find(x => x.id === id); if (!a) return;
       if (a.data === td.dataset.d && a.colaborador_id === td.dataset.c) return;
       const copiar = e.ctrlKey || e.altKey; // Ctrl/Alt + arrastar = duplicar
+      const nova = { id, data: td.dataset.d, colaborador_id: td.dataset.c };
+      if (!copiar) { a.data = nova.data; a.colaborador_id = nova.colaborador_id; desenhar(); } // mostra na hora; o servidor confirma em seguida
       try {
-        await rpc(copiar ? 'gestao.atividade.duplicar' : 'gestao.atividade.salvar', { id, data: td.dataset.d, colaborador_id: td.dataset.c });
-        toast(copiar ? 'Atividade duplicada' : 'Atividade remanejada'); carregar();
-      } catch (err) { toast(err.message, true); }
+        await rpc(copiar ? 'gestao.atividade.duplicar' : 'gestao.atividade.salvar', nova);
+        if (copiar) { toast('Atividade duplicada'); carregar(); } else toast('Atividade remanejada');
+      } catch (err) { toast(err.message, true); carregar(); }
     };
   });
 }
@@ -686,13 +736,12 @@ function editar(a) {
 
 async function mount() {
   offset = 0;
-  const eq = await rpc('gestao.equipes');
-  $('#filtro').insertAdjacentHTML('beforeend', eq.map(e => `<option value="${e.id}">${esc(e.nome)}</option>`).join(''));
   $('#filtro').onchange = desenhar;
   $('#ant').onclick = () => { offset--; carregar(); };
   $('#prox').onclick = () => { offset++; carregar(); };
   $('#hoje').onclick = () => { offset = 0; carregar(); };
-  carregar();
+  await carregar(); // o calendário já traz as equipes
+  if (cal) $('#filtro').insertAdjacentHTML('beforeend', cal.equipes.map(e => `<option value="${e.id}">${esc(e.nome)}</option>`).join(''));
 }
   return { mount };
 })();
@@ -700,7 +749,7 @@ const Cad = (() => {
 let equipes = [], colabs = [];
 
 async function carregar() {
-  [equipes, colabs] = await Promise.all([rpc('gestao.equipes'), rpc('gestao.colaboradores')]);
+  const r = await rpc('gestao.cadastros'); equipes = r.equipes; colabs = r.colaboradores;
   const opts = '<option value="">Sem equipe</option>' + equipes.map(e => `<option value="${e.id}">${esc(e.nome)}</option>`).join('');
   $('#co-eq').innerHTML = opts;
   $('#te').innerHTML = equipes.map(e => `<tr><td>${esc(e.nome)}</td><td>${colabs.filter(c => c.equipe_id === e.id && c.ativo).length} colaborador(es)</td>
@@ -730,7 +779,7 @@ const HTML_INICIO = `
   <section class="inicio">
     <div class="hero">
       <img src="${LOGO}" alt="AngloGold Ashanti">
-      <h1>Sistema PCM</h1>
+      <h1>Informe de Turno</h1>
       <p>Planejamento e Controle de Manutenção</p>
     </div>
     <nav class="escolhas" aria-label="Selecione o perfil">
@@ -747,11 +796,11 @@ const HTML_INICIO = `
         <span class="go">Entrar</span>
       </a>
     </nav>
-    <footer>AngloGold Ashanti · PCM</footer>
+    <footer>AngloGold Ashanti<br><span class="dica">Dica: no celular, use “Adicionar à tela inicial” para abrir como aplicativo.</span><br><a id="lk-cartaz" class="dica" href="cartaz.html" style="color:inherit">QR code para imprimir</a></footer>
   </section>`;
 
 const marca = '<a class="marca" href="#" data-ir="inicio"><img src="' + LOGO + '" alt="AngloGold Ashanti"></a>';
-const HTML_OP = '<header class="top">' + marca + '<h1>Operacional · Apontamento de turno</h1><nav></nav><a href="#" data-ir="inicio">Início</a></header>' + `<main class="estreito">
+const HTML_OP = '<header class="top">' + marca + '<h1>Operacional · Informe de Turno</h1><nav></nav><a href="#" data-ir="inicio">Início</a></header>' + `<main class="estreito">
     <div class="card">
       <label for="colab">Quem é você?</label>
       <select id="colab"></select>
@@ -761,7 +810,7 @@ const HTML_OP = '<header class="top">' + marca + '<h1>Operacional · Apontamento
     <div id="conteudo"></div>
   </main>`;
 const ADM_ABAS = [['aderencia', 'Aderência'], ['programacao', 'Programação'], ['cadastros', 'Cadastros']];
-const HTML_ADM = aba => '<header class="top">' + marca + '<h1>ADM · PCM</h1><nav>' +
+const HTML_ADM = aba => '<header class="top">' + marca + '<h1>ADM · Informe de Turno</h1><nav>' +
   ADM_ABAS.map(([k, n]) => '<a href="#" data-aba="' + k + '" class="' + (k === aba ? 'on' : '') + '">' + n + '</a>').join('') +
   '<a href="#" data-ir="inicio">Início</a></nav><button id="sair" class="peq">Sair</button></header><main id="admMain"></main>';
 const SKEL = {
@@ -812,18 +861,15 @@ function ir(v) {
   Dash.unmount();
   document.querySelectorAll('.overlay').forEach(o => o.remove());
   window.scrollTo(0, 0);
-  if (v === 'inicio') { app.innerHTML = HTML_INICIO; }
+  if (v === 'inicio') { app.innerHTML = HTML_INICIO; if (NO_GOOGLE) { const l = $('#lk-cartaz'); if (l) l.remove(); } }
   else if (v === 'operacional') { app.innerHTML = HTML_OP; Op.mount(); }
   else if (v === 'adm') { entrarAdm(); }
 }
 
-async function entrarAdm() {
+function entrarAdm() {
   app.innerHTML = HTML_ADM(abaAtual);
-  try {
-    const r = await rpc('auth.status');
-    if (!r.autenticado) { Tok.clear(); return pedirLogin(); }
-    montarAba(abaAtual);
-  } catch (e) { toast(e.message, true); }
+  if (!Tok.get()) return pedirLogin(); // se a sessão tiver vencido, o servidor avisa e o login reaparece
+  montarAba(abaAtual);
 }
 
 function montarAba(aba) {
@@ -852,6 +898,14 @@ document.addEventListener('click', e => {
   if (e.target.id === 'sair') { Tok.clear(); ir('inicio'); }
 });
 
+// Aplicativo instalável (só na versão hospedada fora do Google): ícone na tela inicial e abertura rápida.
+if (!NO_GOOGLE) {
+  [['manifest', 'manifest.json'], ['apple-touch-icon', 'icon-192.png']].forEach(([rel, href]) => { const l = document.createElement('link'); l.rel = rel; l.href = href; document.head.appendChild(l); });
+  const m = document.createElement('meta'); m.name = 'theme-color'; m.content = '#0a0a0a'; document.head.appendChild(m);
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+prefetchInicio();
 ir('inicio');
 </script>
 </body>

@@ -34,7 +34,7 @@ function modal(html) {
 function cabecalhoGestao(ativa) {
   const links = [['dashboard.html', 'Aderência'], ['calendario.html', 'Programação'], ['cadastros.html', 'Cadastros']];
   const h = document.createElement('header'); h.className = 'top';
-  h.innerHTML = `<a class="marca" href="/"><img src="img/logo-anglo.png" alt="AngloGold Ashanti"></a><h1>ADM · PCM</h1><nav>${links.map(([u, n]) => `<a href="${u}" class="${u === ativa ? 'on' : ''}">${n}</a>`).join('')}<a href="/">Início</a></nav><button id="sair" class="peq">Sair</button>`;
+  h.innerHTML = `<a class="marca" href="/"><img src="img/logo-anglo.png" alt="AngloGold Ashanti"></a><h1>ADM · Informe de Turno</h1><nav>${links.map(([u, n]) => `<a href="${u}" class="${u === ativa ? 'on' : ''}">${n}</a>`).join('')}<a href="/">Início</a></nav><button id="sair" class="peq">Sair</button>`;
   document.body.prepend(h);
   $('#sair').onclick = async () => { await api('POST', '/api/auth/logout'); location.reload(); };
 }

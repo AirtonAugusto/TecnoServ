@@ -1,7 +1,7 @@
 {
-  "name": "tecnoserv-pcm",
+  "name": "informe-de-turno",
   "version": "1.0.0",
-  "description": "Apontamento de turno, aderência e programação semanal para PCM",
+  "description": "Informe de turno, aderência e programação semanal",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

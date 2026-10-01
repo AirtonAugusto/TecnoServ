@@ -122,3 +122,26 @@ test('doPost: API JSON para a página hospedada no GitHub Pages', () => {
   assert.strictEqual(env.doPost(JSON.stringify({ metodo: 'gestao.equipes', args: {} })).auth, true);
   assert.strictEqual(env.doPost('isto não é json').ok, false);
 });
+
+test('chamadas combinadas: publico.inicio, gestao.painel e gestao.cadastros', () => {
+  const env = criarAmbiente({ props: { GESTAO_SENHA: 's' } });
+  const token = env.rpc('auth.login', { senha: 's' }).dados.token;
+  const g = (m, a) => env.rpc('gestao.' + m, { ...a, token });
+  const eq = g('equipe.salvar', { nome: 'A' }).dados;
+  const c = g('colaborador.salvar', { nome: 'Zé', equipe_id: eq.id }).dados;
+  const h = hoje();
+  g('atividade.salvar', { os: '1', descricao: 'X', data: h, colaborador_id: c.id });
+
+  const sem = env.rpc('publico.inicio', { id: '' }).dados;
+  assert.strictEqual(sem.colaboradores.length, 1); assert.strictEqual(sem.tarefas, null);
+  const com = env.rpc('publico.inicio', { id: c.id }).dados;
+  assert.strictEqual(com.tarefas.atividades.length, 1);
+  assert.strictEqual(env.rpc('publico.inicio', { id: 'id-que-nao-existe' }).dados.tarefas, null);
+
+  const p = g('painel', { de: somar(h, -6), ate: h, equipe_id: '', rdata: h }).dados;
+  assert.strictEqual(p.equipes.length, 1); assert.strictEqual(p.aderencia.geral.planejadas, 1); assert.ok(Array.isArray(p.relatorios));
+  const cad = g('cadastros', {}).dados;
+  assert.strictEqual(cad.equipes.length, 1); assert.strictEqual(cad.colaboradores.length, 1);
+  assert.strictEqual(env.rpc('gestao.painel', {}).auth, true, 'painel exige login');
+  assert.strictEqual(env.rpc('ping', {}).ok, true);
+});

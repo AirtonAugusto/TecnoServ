@@ -1,4 +1,4 @@
-# Sistema PCM — versão Google (sem servidor, sem custo)
+# Informe de Turno — versão Google (sem servidor, sem custo)
 
 Roda inteiramente na sua conta Google:
 
@@ -60,23 +60,31 @@ Dica de conferência: o `Code.gs` colado tem cerca de 630 linhas e começa com `
 3. **Programação:** lance as atividades (clique no **+** da célula; arraste para remanejar).
 4. Envie o link aos colaboradores: eles escolhem **OPERACIONAL**, selecionam o nome e preenchem o turno.
 
-## Página hospedada no GitHub (mais rápida) — opcional, recomendado
+## Página hospedada no GitHub (link fácil e rápido)
 
-A mesma página fica em `docs/index.html` e pode ser servida pelo **GitHub Pages**, com endereço fixo e carregamento imediato. O Google continua guardando os dados (planilha) e as fotos (Drive); a página só conversa com ele.
+A página fica em `docs/index.html` e é publicada pelo **GitHub Pages**. O Google continua guardando os dados (planilha) e as fotos (Drive); a página só conversa com ele.
 
-1. Coloque a pasta `docs/` na branch `main` (merge do Pull Request).
-2. No GitHub: **Settings → Pages → Build and deployment → Source: Deploy from a branch → Branch: `main` / pasta `/docs` → Save**.
-3. Aguarde 1–2 minutos. O endereço será `https://<usuário>.github.io/<repositório>/` (ex.: `https://airtonaugusto.github.io/TecnoServ/`). Esse é o link para enviar à equipe.
-4. Cole o **novo `Code.gs`** no Apps Script (ele ganhou `doPost` e cache) e republique: **Implantar → Gerenciar implantações → ✏️ → Nova versão → Implantar**.
+1. **Nome do repositório (define o link):** em *Settings → General → Repository name*, use um nome curto como `informe-de-turno`. O link passa a ser `https://<seu-usuário>.github.io/informe-de-turno/`.
+2. **Ativar:** *Settings → Pages → Build and deployment → Source: Deploy from a branch → Branch `main`, pasta `/docs` → Save*. Espere 1–2 minutos.
+3. **Novo `Code.gs`:** cole o conteúdo de `apps-script/Code.gs` no Apps Script e republique em *Implantar → Gerenciar implantações → ✏️ → Nova versão → Implantar*.
 
-O endereço do Apps Script usado pela página está na constante `API_URL`, no começo do script de `docs/index.html` (e de `Pagina.html`). Se criar uma **nova implantação** (e não editar a existente), o URL muda e é preciso atualizá-lo nos dois arquivos. `Pagina.html` e `docs/index.html` são idênticos: depois de editar um, copie para o outro.
+O endereço do Apps Script usado pela página está na constante `API_URL`, no começo do script de `docs/index.html` (e de `Pagina.html`). Se criar uma **nova implantação** (e não editar a existente), o URL muda e precisa ser atualizado nos dois arquivos. `Pagina.html` e `docs/index.html` são idênticos: depois de editar um, copie para o outro.
 
-> A página no GitHub fala com o Apps Script por requisições `fetch`. O Apps Script precisa estar publicado com **Quem pode acessar: Qualquer pessoa**.
+## Link fácil de acessar
+
+- **QR code para imprimir:** abra `https://<seu-usuário>.github.io/<repositório>/cartaz.html` e clique em *Imprimir*. A página gera o QR do endereço certo automaticamente; cole no mural ou no vestiário.
+- **Aplicativo no celular:** ao abrir o link no celular, use *Adicionar à tela inicial* (Chrome/Android: menu ⋮; iPhone/Safari: botão de compartilhar). O Informe de Turno passa a abrir como aplicativo, em tela cheia, e carrega mais rápido.
+- **Link curto (opcional):** use um encurtador (como bit.ly ou tinyurl.com) com o endereço do site e divulgue o link curto.
 
 ## Desempenho
-- **Cache de leitura**: o servidor guarda as tabelas por até 6 h no cache do Google e invalida a cada gravação. Leituras repetidas deixam de ir à planilha.
-- **Barra dourada no topo** mostra que o sistema está trabalhando.
-- O primeiro acesso depois de um tempo parado pode ser mais lento (o Google "acorda" o script).
+- **Menos chamadas ao Google:** abrir a ADM faz 1 chamada (antes eram 4); abrir o OPERACIONAL traz nomes e tarefas numa só.
+- **Carregamento antecipado:** enquanto a pessoa lê a tela inicial, o sistema já busca os nomes e as tarefas do último colaborador usado.
+- **Cache no servidor:** as tabelas ficam até 6 h no cache do Google e são invalidadas a cada gravação.
+- **Gráficos sob demanda** (a biblioteca só baixa quando a ADM abre o painel) e **arrastar na programação sem esperar** a resposta do servidor.
+- **Aplicativo instalado:** a página fica guardada no aparelho.
+- **Opcional — manter o sistema "acordado":** no Apps Script, abra **Acionadores (⏰) → Adicionar acionador**, função `manterAtivo`, *Baseado em tempo → A cada 5 minutos*. Reduz a demora do primeiro acesso do dia.
+
+> O Apps Script tem uma demora mínima por chamada (em geral 1–2 s). As melhorias acima reduzem a quantidade de chamadas e escondem a espera, mas não eliminam esse piso. Para respostas abaixo de 1 s seria preciso trocar a planilha por um banco de dados em nuvem (Firebase ou Supabase, com plano gratuito).
 
 ## Atualizar o sistema depois
 Colou código novo? **Implantar → Gerenciar implantações → ✏️ editar → Versão: Nova versão → Implantar.** O link continua o mesmo.
