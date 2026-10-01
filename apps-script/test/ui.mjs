@@ -8,6 +8,8 @@ const { chromium } = require('playwright');
 const { criarAmbiente } = require('./harness.js');
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const out = process.argv[2] || '/tmp/';
+const MODO = process.argv[3] || 'apps-script'; // 'pages' = página hospedada fora do Google (fetch)
+const PAGINA = MODO === 'pages' ? '../../docs/index.html' : '../Pagina.html';
 
 const env = criarAmbiente({ props: { GESTAO_SENHA: 'teste' } });
 const somar = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -37,16 +39,22 @@ const errs = [];
 const b = await chromium.launch({ args: ['--no-proxy-server'] });
 const ctx = await b.newContext({ viewport: { width: 1300, height: 900 } });
 await ctx.route('**/cdnjs.cloudflare.com/**', r => r.fulfill({ contentType: 'application/javascript', body: fs.readFileSync(path.join(dir, '../../pcm/public/vendor/chart.umd.js')) }));
-await ctx.addInitScript(() => {
+if (MODO === 'pages') {
+  await ctx.route('**/script.google.com/macros/**', async r => {
+    const corpo = r.request().postData() || '{}';
+    const resp = env.doPost(corpo);
+    await r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(resp) });
+  });
+} else await ctx.addInitScript(() => {
   const mk = () => { let ok = () => {}, bad = () => {}; const o = {
     withSuccessHandler(f) { ok = f; return o; }, withFailureHandler(f) { bad = f; return o; },
     rpc(m, a) { window.__rpc(m, a).then(ok, e => bad(new Error(String(e)))); } }; return o; };
   Object.defineProperty(window, 'google', { value: { script: { get run() { return mk(); } } } });
 });
 const p = await ctx.newPage();
-await p.exposeFunction('__rpc', (m, a) => env.rpc(m, a));
+if (MODO !== 'pages') await p.exposeFunction('__rpc', (m, a) => env.rpc(m, a));
 p.on('pageerror', e => errs.push('PAGEERR ' + e.message)); p.on('console', m => m.type() === 'error' && errs.push('CONSOLE ' + m.text()));
-await p.goto('file://' + path.join(dir, '../Pagina.html'));
+await p.goto('file://' + path.join(dir, PAGINA));
 await p.waitForTimeout(300); console.log('erros iniciais:', errs); await p.screenshot({ path: out + 'gas_ini.png' });
 
 // --- Operacional ---

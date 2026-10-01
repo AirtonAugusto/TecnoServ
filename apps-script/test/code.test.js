@@ -93,3 +93,32 @@ test('fluxo completo: cadastro, programação, apontamento, aderência, fotos', 
   assert.strictEqual(g('colaborador.inativar', { id: c.id }).ok, true);
   assert.strictEqual(env.rpc('publico.colaboradores', {}).dados.length, 0);
 });
+
+test('cache de leitura: evita ler a planilha e é invalidado por gravações', () => {
+  const env = criarAmbiente({ props: { GESTAO_SENHA: 's' } });
+  const token = env.rpc('auth.login', { senha: 's' }).dados.token;
+  const g = (m, a) => env.rpc('gestao.' + m, { ...a, token });
+  const eq = g('equipe.salvar', { nome: 'A' }).dados;
+  g('colaborador.salvar', { nome: 'Zé', equipe_id: eq.id });
+
+  env.rpc('publico.colaboradores', {}); // aquece o cache
+  const antes = env.stats.leituras;
+  for (let i = 0; i < 5; i++) assert.strictEqual(env.rpc('publico.colaboradores', {}).dados.length, 1);
+  assert.strictEqual(env.stats.leituras, antes, 'leituras repetidas não devem tocar a planilha');
+
+  g('colaborador.salvar', { nome: 'Maria', equipe_id: eq.id });           // gravação invalida
+  const lista = env.rpc('publico.colaboradores', {}).dados;
+  assert.deepStrictEqual(lista.map(c => c.nome), ['Maria', 'Zé']);
+  g('colaborador.inativar', { id: lista[0].id });
+  assert.deepStrictEqual(env.rpc('publico.colaboradores', {}).dados.map(c => c.nome), ['Zé']);
+});
+
+test('doPost: API JSON para a página hospedada no GitHub Pages', () => {
+  const env = criarAmbiente({ props: { GESTAO_SENHA: 's' } });
+  const r = env.doPost(JSON.stringify({ metodo: 'auth.login', args: { senha: 's' } }));
+  assert.strictEqual(r.ok, true);
+  const eq = env.doPost(JSON.stringify({ metodo: 'gestao.equipe.salvar', args: { nome: 'X', token: r.dados.token } }));
+  assert.strictEqual(eq.ok, true);
+  assert.strictEqual(env.doPost(JSON.stringify({ metodo: 'gestao.equipes', args: {} })).auth, true);
+  assert.strictEqual(env.doPost('isto não é json').ok, false);
+});

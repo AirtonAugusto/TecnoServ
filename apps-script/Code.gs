@@ -36,6 +36,21 @@ function doGet() {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
+/**
+ * API para a página hospedada fora do Google (GitHub Pages).
+ * Recebe JSON em texto simples: {"metodo": "...", "args": {...}} e devolve JSON.
+ */
+function doPost(e) {
+  var saida;
+  try {
+    var req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    saida = rpc(req.metodo, req.args);
+  } catch (err) {
+    saida = { ok: false, erro: 'Requisição inválida.' };
+  }
+  return ContentService.createTextOutput(JSON.stringify(saida)).setMimeType(ContentService.MimeType.JSON);
+}
+
 /** Execute uma vez no editor (Executar > preparar) para criar as abas e autorizar o script. */
 function preparar() {
   Object.keys(SCHEMAS_).forEach(function (t) { folha_(t); });
@@ -84,8 +99,9 @@ function rpc(metodo, args) {
     if (metodo.indexOf('gestao.') === 0 && !tokenValido_(args.token)) {
       return { ok: false, erro: 'Acesso restrito à ADM. Faça login.', auth: true };
     }
-    if (ESCRITA_[metodo]) { lock = LockService.getScriptLock(); lock.waitLock(25000); }
     cache_ = {};
+    semCache_ = !!ESCRITA_[metodo];
+    if (ESCRITA_[metodo]) { lock = LockService.getScriptLock(); lock.waitLock(25000); }
     return { ok: true, dados: fn(args) };
   } catch (e) {
     if (e && e.pcm) return { ok: false, erro: e.message };
@@ -157,8 +173,37 @@ function celula_(v, tipo, campo) {
   return v == null ? '' : String(v);
 }
 
+var semCache_ = false; // true durante gravações: sempre lê a planilha (linhas corretas)
+
+function cacheTab_() { return CacheService.getScriptCache(); }
+function versaoTab_(t) {
+  var c = cacheTab_(), v = c.get('v:' + t);
+  if (!v) { v = String(Date.now()); c.put('v:' + t, v, 21600); }
+  return v;
+}
+function invalidar_(t) { cacheTab_().put('v:' + t, String(Date.now()) + Math.random().toString(36).slice(2, 6), 21600); }
+
+function lerCache_(t, v) {
+  var c = cacheTab_(), n = c.get('d:' + t + ':' + v + ':n');
+  if (!n) return null;
+  var chaves = []; for (var i = 0; i < Number(n); i++) chaves.push('d:' + t + ':' + v + ':' + i);
+  var partes = c.getAll(chaves), txt = '';
+  for (var j = 0; j < chaves.length; j++) { if (partes[chaves[j]] == null) return null; txt += partes[chaves[j]]; }
+  try { return JSON.parse(txt); } catch (e) { return null; }
+}
+function gravarCache_(t, v, linhas) {
+  if (versaoTab_(t) !== v) return; // houve gravação enquanto líamos: não guarda dado velho
+  var txt = JSON.stringify(linhas), TAM = 90000, mapa = {}, n = 0;
+  for (var i = 0; i < txt.length; i += TAM) mapa['d:' + t + ':' + v + ':' + (n++)] = txt.slice(i, i + TAM);
+  mapa['d:' + t + ':' + v + ':n'] = String(n);
+  try { cacheTab_().putAll(mapa, 21600); } catch (e) { /* tabela grande demais: segue sem cache */ }
+}
+
 function todos_(t) {
   if (cache_[t]) return cache_[t];
+  var v = null, lido = null;
+  if (!semCache_) { v = versaoTab_(t); lido = lerCache_(t, v); }
+  if (lido) { cache_[t] = lido; return lido; }
   var sch = SCHEMAS_[t], campos = Object.keys(sch), sh = folha_(t);
   var vals = sh.getDataRange().getValues(), cab = vals[0] || [], out = [];
   for (var i = 1; i < vals.length; i++) {
@@ -169,6 +214,7 @@ function todos_(t) {
     out.push(row);
   }
   cache_[t] = out;
+  if (!semCache_) gravarCache_(t, v, out);
   return out;
 }
 function achar_(t, id) { var r = todos_(t).filter(function (x) { return x.id === id; }); return r[0] || null; }
@@ -186,7 +232,7 @@ function inserir_(t, obj) {
   Object.keys(sch).forEach(function (c) { row[c] = obj[c] != null ? obj[c] : (sch[c] === 'j' ? [] : sch[c] === 'b' ? false : ''); });
   if (!row.id) row.id = Utilities.getUuid().replace(/-/g, '').slice(0, 12);
   folha_(t).appendRow(paraLinha_(t, row));
-  cache_[t] = null;
+  cache_[t] = null; invalidar_(t);
   return row;
 }
 function inserirVarios_(t, objs) { // uma única gravação para vários registros
@@ -198,21 +244,21 @@ function inserirVarios_(t, objs) { // uma única gravação para vários registr
     return row;
   });
   sh.getRange(sh.getLastRow() + 1, 1, rows.length, Object.keys(sch).length).setValues(rows.map(function (r) { return paraLinha_(t, r); }));
-  cache_[t] = null;
+  cache_[t] = null; invalidar_(t);
   return rows;
 }
 function atualizar_(t, id, patch) {
   var row = achar_(t, id); if (!row) return null;
   Object.keys(SCHEMAS_[t]).forEach(function (c) { if (c !== 'id' && c in patch) row[c] = patch[c]; });
   folha_(t).getRange(row._linha, 1, 1, Object.keys(SCHEMAS_[t]).length).setValues([paraLinha_(t, row)]);
-  cache_[t] = null;
+  cache_[t] = null; invalidar_(t);
   return row;
 }
 function removerOnde_(t, fn) {
   var linhas = todos_(t).filter(fn).map(function (r) { return r._linha; }).sort(function (a, b) { return b - a; });
   var sh = folha_(t);
   linhas.forEach(function (l) { sh.deleteRow(l); });
-  cache_[t] = null;
+  cache_[t] = null; invalidar_(t);
   return linhas.length;
 }
 

@@ -6,6 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 function criarAmbiente({ props = {} } = {}) {
+  const stats = { leituras: 0 };
   const planilhas = {}; // nome -> matriz (linha 0 = cabeçalho)
   const arquivos = {};
   const propriedades = { ...props };
@@ -17,7 +18,7 @@ function criarAmbiente({ props = {} } = {}) {
       setFontWeight() { return this; }, setNumberFormat() { return this; },
     });
     return {
-      getDataRange: () => ({ getValues: () => m.map(l => l.slice()) }),
+      getDataRange: () => ({ getValues: () => { stats.leituras++; return m.map(l => l.slice()); } }),
       getRange: (a, b, c, d) => typeof a === 'string' ? rng(1, 1) : rng(a, b, c, d),
       appendRow: v => { m.push(v.slice()); },
       getLastRow: () => m.length,
@@ -32,7 +33,8 @@ function criarAmbiente({ props = {} } = {}) {
       insertSheet: n => { planilhas[n] = []; return sheet(n); },
     }) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => propriedades[k] ?? null, setProperty: (k, v) => { propriedades[k] = v; } }) },
-    CacheService: { getScriptCache: () => ({ get: k => cacheMem[k] ?? null, put: (k, v) => { cacheMem[k] = v; }, remove: k => { delete cacheMem[k]; } }) },
+    CacheService: { getScriptCache: () => ({ get: k => cacheMem[k] ?? null, put: (k, v) => { cacheMem[k] = v; }, putAll: o => { Object.assign(cacheMem, o); }, getAll: ks => Object.fromEntries(ks.filter(k => k in cacheMem).map(k => [k, cacheMem[k]])), remove: k => { delete cacheMem[k]; } }) },
+    ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ conteudo: t, setMimeType() { return this; } }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     Logger: { log() {} },
     DriveApp: {
@@ -54,6 +56,6 @@ function criarAmbiente({ props = {} } = {}) {
   };
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'Code.gs'), 'utf8'), ctx, { filename: 'Code.gs' });
-  return { ctx, planilhas, arquivos, propriedades, rpc: (m, a) => JSON.parse(JSON.stringify(ctx.rpc(m, a))) };
+  return { stats, ctx, planilhas, arquivos, propriedades, doPost: corpo => JSON.parse(ctx.doPost({ postData: { contents: corpo } }).conteudo), rpc: (m, a) => JSON.parse(JSON.stringify(ctx.rpc(m, a))) };
 }
 module.exports = { criarAmbiente };
