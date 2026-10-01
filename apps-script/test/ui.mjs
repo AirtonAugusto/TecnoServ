@@ -12,13 +12,13 @@ const out = process.argv[2] || '/tmp/';
 const env = criarAmbiente({ props: { GESTAO_SENHA: 'teste' } });
 const somar = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
-const tok = env.rpc('auth.login', { email: 'airton@empresa.com', senha: 'teste' }).dados.token;
+const tok = env.rpc('auth.login', { senha: 'teste' }).dados.token;
 const g = (m, a) => { const r = env.rpc('gestao.' + m, { ...a, token: tok }); if (!r.ok) console.log('SEED ERRO', m, r.erro); return r.dados; };
 
 // ---- dados de exemplo ----
 const eqA = g('equipe.salvar', { nome: 'Alta Tensão · AGA' }), eqB = g('equipe.salvar', { nome: 'SM&A' }), eqC = g('equipe.salvar', { nome: 'Cardozo' });
 const pessoas = [['Neyberte', '100001', eqA, 'ADM', ''], ['José Nilson', '102345', eqA, 'Turno', 'B'], ['Thiago', '100003', eqB, 'ADM', ''], ['Técnico 4', '100004', eqC, 'Turno', 'C'], ['Técnico 5', '100005', eqC, 'ADM', ''], ['Marcos', '100006', eqA, 'Turno', 'C']]
-  .map(([n, m, e, r, l]) => g('colaborador.salvar', { nome: n, matricula: m, equipe_id: e.id, regime: r, letra: l }));
+  .map(([n, m, e, r, l]) => g('colaborador.salvar', { nome: n, equipe_id: e.id, regime: r, letra: l }));
 const TAREFAS = [['Inspeção termográfica dos barramentos', 'QGBT-01 · Painel principal', 'Subestação Principal', 'Alta'], ['Medição de resistência de isolamento', 'Transformador TR-02 · 13,8 kV', 'SE-02 · Moagem', 'Média'],
   ['Teste funcional do relé de proteção 50/51', 'Disjuntor DJ-05', 'Subestação Principal', 'Alta'], ['Limpeza e reaperto de conexões', 'CCM-03', 'Planta de beneficiamento', 'Média'], ['Verificação do banco de baterias', 'Retificador RT-02', 'Sala elétrica 2', 'Baixa']];
 const seg = (() => { const w = new Date(hoje + 'T00:00:00Z').getUTCDay() || 7; return somar(hoje, 1 - w); })();
@@ -57,9 +57,11 @@ const log = (...a) => console.log(...a);
 // ---------- login (colaborador) ----------
 await p.goto(docs); await p.waitForSelector('.split');
 await p.screenshot({ path: out + 'N_login.png' });
-await p.fill('#l-mat', '999'); await p.click('#l-ok'); await p.waitForSelector('#l-erro:not([hidden])');
-log('matrícula inválida:', (await p.textContent('#l-erro')).trim());
-await p.fill('#l-mat', '102345'); await p.click('#l-ok'); // turno automático (pelo cadastro: Turno B)
+await p.waitForFunction(() => { const s = document.querySelector('#l-nome'); return s && !s.disabled && s.options.length > 1; });
+log('nomes na lista:', (await p.locator('#l-nome option').allTextContents()).slice(1, 4).join(' | '), '...');
+await p.click('#l-ok'); await p.waitForSelector('#l-erro:not([hidden])');
+log('sem escolher o nome:', (await p.textContent('#l-erro')).trim());
+await p.selectOption('#l-nome', { label: 'José Nilson — Alta Tensão · AGA' }); await p.click('#l-ok'); // turno automático (pelo cadastro: Turno B)
 await p.waitForSelector('.ativ');
 log('cards:', await p.locator('.ativ').count(), '| header:', (await p.textContent('.topo .quem')).replace(/\s+/g, ' ').trim());
 
@@ -85,7 +87,7 @@ await p.click('#op-sair'); await p.waitForSelector('.split');
 
 // ---------- ADM ----------
 await p.click('[data-perfil=pcm]');
-await p.fill('#l-email', 'airton@empresa.com'); await p.fill('#l-senha', 'errada'); await p.click('#l-ok');
+await p.fill('#l-senha', 'errada'); await p.click('#l-ok');
 await p.waitForSelector('#l-erro:not([hidden])'); log('senha errada:', (await p.textContent('#l-erro')).trim());
 await p.fill('#l-senha', 'teste'); await p.click('#l-ok');
 await p.waitForSelector('.kpi'); await p.waitForTimeout(300);
@@ -126,7 +128,7 @@ await p.screenshot({ path: out + 'N_rel.png', fullPage: true });
 await p.click('.nav[data-aba=cadastros]'); await p.waitForSelector('#c-fc');
 await p.selectOption('#c-reg', 'ADM'); log('letra escondida p/ ADM:', !(await p.locator('#c-letra').isVisible()));
 await p.selectOption('#c-reg', 'Turno'); await p.selectOption('#c-letra', 'B');
-await p.fill('#c-nome', 'Novo Colaborador'); await p.fill('#c-mat', '555'); await p.click('#c-fc .btn.pri'); await p.waitForTimeout(500);
+await p.fill('#c-nome', 'Novo Colaborador'); await p.click('#c-fc .btn.pri'); await p.waitForTimeout(500);
 log('cadastrou:', await p.locator('tr', { hasText: 'Novo Colaborador' }).count(), '| grupos:', (await p.locator('tr.grp-l').allTextContents()).map(t => t.replace(/\s+/g, ' ').trim()).join(' / '));
 await p.locator('tr', { hasText: 'Novo Colaborador' }).locator('[data-exc]').click(); await p.waitForTimeout(500);
 log('excluiu:', await p.locator('tr', { hasText: 'Novo Colaborador' }).count() === 0);

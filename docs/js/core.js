@@ -109,7 +109,7 @@ const ss = {
   set(k, v) { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) { (window.__ss = window.__ss || {})[k] = v; } },
   del(k) { try { sessionStorage.removeItem(k); } catch (e) { if (window.__ss) delete window.__ss[k]; } },
 };
-// Sessões: colaborador (matrícula + turno) e gestão (e-mail + senha)
+// Sessões: colaborador (nome + turno) e gestão (senha)
 const Sessao = {
   colab: () => ss.get('pcm_colab'),
   gestao: () => ss.get('pcm_gestao'),
