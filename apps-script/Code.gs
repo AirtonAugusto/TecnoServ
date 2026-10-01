@@ -15,10 +15,10 @@
 var TZ_ = 'America/Sao_Paulo';
 var STATUS_APONT_ = ['concluida', 'iniciada', 'pendente'];
 var CLASSIF_ = ['BPF', 'Corretiva'];
-var TURNOS_ = ['Turno A', 'Turno B', 'Turno C', 'Administrativo'];
+var TURNOS_ = ['Turno B', 'Turno C', 'Administrativo'];
 var PRIORIDADES_ = ['Alta', 'Média', 'Baixa'];
 var REGIMES_ = ['Turno', 'ADM'];
-var LETRAS_ = ['A', 'B', 'C'];
+var LETRAS_ = ['B', 'C'];
 var MOTIVOS_ = {
   material: 'Falta de material / sobressalente',
   liberacao: 'Equipamento sem liberação da operação',
@@ -519,7 +519,7 @@ function gColabSalvar_(a) {
   exigir_(!equipeId || achar_('equipes', equipeId), 'Equipe inválida.');
   var regime = REGIMES_.indexOf(a.regime) >= 0 ? a.regime : 'Turno';
   var letra = regime === 'ADM' ? '' : String(a.letra || '').toUpperCase();
-  exigir_(regime === 'ADM' || LETRAS_.indexOf(letra) >= 0, 'Escolha a letra do turno (A, B ou C).');
+  exigir_(regime === 'ADM' || LETRAS_.indexOf(letra) >= 0, 'Escolha a letra do turno (B ou C).');
   var dados = { nome: nome, equipe_id: equipeId, ativo: a.ativo !== false, matricula: mat, regime: regime, letra: letra };
   if (a.id) { var r = atualizar_('colaboradores', a.id, dados); exigir_(r, 'Colaborador não encontrado.'); return limpar_(r); }
   return limpar_(inserir_('colaboradores', dados));

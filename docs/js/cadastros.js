@@ -1,5 +1,5 @@
 'use strict';
-/* ===== Cadastros: equipes e colaboradores (com regime Turno/ADM e letra A/B/C) ===== */
+/* ===== Cadastros: equipes e colaboradores (com regime Turno/ADM e letra B/C) ===== */
 const Cad = (() => {
   let el = null, equipes = [], colabs = [];
   const nomeEq = id => (equipes.find(e => e.id === id) || {}).nome || '—';
@@ -41,7 +41,7 @@ const Cad = (() => {
         ${camposRegime('c', { regime: 'Turno', letra: 'A' })}
         <button class="btn pri fx">Adicionar</button>
       </form>
-      <p class="nota">A matrícula é o que o colaborador digita para entrar. <b>Turno</b> = roda as letras A, B ou C. <b>ADM</b> = não roda turno e tem folga fixa no sábado e domingo.</p>
+      <p class="nota">A matrícula é o que o colaborador digita para entrar. <b>Turno</b> = roda as letras B ou C. <b>ADM</b> = não roda turno e tem folga fixa no sábado e domingo.</p>
       <div style="overflow-x:auto"><table class="tab"><tr><th>Colaborador</th><th>Matrícula</th><th>Equipe</th><th>Turno</th><th></th></tr>
         ${grupos.map(g => `<tr class="grp-l"><td colspan="5">${g.nome} <span>· ${g.lista.length} ${g.lista.length === 1 ? 'pessoa' : 'pessoas'}</span></td></tr>${g.lista.map(linhaColab).join('')}`).join('') || '<tr><td colspan="5" class="nota">Nenhum colaborador cadastrado.</td></tr>'}</table></div>
     </section>`;

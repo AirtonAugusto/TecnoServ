@@ -15,11 +15,11 @@ const APP = {
 };
 const AUTOR = 'Airton C. M. Augusto';
 const assinatura = (cls = '') => `<div class="assinatura ${cls}">Desenvolvido por <b>${esc(AUTOR)}</b></div>`;
-const TURNOS = ['Turno A', 'Turno B', 'Turno C', 'Administrativo'];
-const LETRAS = ['A', 'B', 'C'];
+const TURNOS = ['Turno B', 'Turno C', 'Administrativo'];
+const LETRAS = ['B', 'C'];
 
-// Grupos de colaboradores: as letras (A, B, C) rodam turno; ADM não.
-const GRUPOS = [['A', 'Turno A'], ['B', 'Turno B'], ['C', 'Turno C'], ['ADM', 'ADM'], ['?', 'Sem letra']];
+// Grupos de colaboradores: as letras (B e C) rodam turno; ADM não.
+const GRUPOS = [['B', 'Turno B'], ['C', 'Turno C'], ['ADM', 'ADM'], ['?', 'Sem letra']];
 const grupoDe = c => (c.regime === 'ADM' ? 'ADM' : (LETRAS.includes(c.letra) ? c.letra : '?'));
 const rotuloGrupo = k => (GRUPOS.find(g => g[0] === k) || GRUPOS[4])[1];
 const rotuloTurno = c => (c.regime === 'ADM' ? 'ADM' : (c.letra ? 'Turno ' + c.letra : 'Turno'));

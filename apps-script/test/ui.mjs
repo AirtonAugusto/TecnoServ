@@ -17,7 +17,7 @@ const g = (m, a) => { const r = env.rpc('gestao.' + m, { ...a, token: tok }); if
 
 // ---- dados de exemplo ----
 const eqA = g('equipe.salvar', { nome: 'Alta Tensão · AGA' }), eqB = g('equipe.salvar', { nome: 'SM&A' }), eqC = g('equipe.salvar', { nome: 'Cardozo' });
-const pessoas = [['Neyberte', '100001', eqA, 'ADM', ''], ['José Nilson', '102345', eqA, 'Turno', 'B'], ['Thiago', '100003', eqB, 'ADM', ''], ['Técnico 4', '100004', eqC, 'Turno', 'C'], ['Técnico 5', '100005', eqC, 'ADM', ''], ['Marcos', '100006', eqA, 'Turno', 'A']]
+const pessoas = [['Neyberte', '100001', eqA, 'ADM', ''], ['José Nilson', '102345', eqA, 'Turno', 'B'], ['Thiago', '100003', eqB, 'ADM', ''], ['Técnico 4', '100004', eqC, 'Turno', 'C'], ['Técnico 5', '100005', eqC, 'ADM', ''], ['Marcos', '100006', eqA, 'Turno', 'C']]
   .map(([n, m, e, r, l]) => g('colaborador.salvar', { nome: n, matricula: m, equipe_id: e.id, regime: r, letra: l }));
 const TAREFAS = [['Inspeção termográfica dos barramentos', 'QGBT-01 · Painel principal', 'Subestação Principal', 'Alta'], ['Medição de resistência de isolamento', 'Transformador TR-02 · 13,8 kV', 'SE-02 · Moagem', 'Média'],
   ['Teste funcional do relé de proteção 50/51', 'Disjuntor DJ-05', 'Subestação Principal', 'Alta'], ['Limpeza e reaperto de conexões', 'CCM-03', 'Planta de beneficiamento', 'Média'], ['Verificação do banco de baterias', 'Retificador RT-02', 'Sala elétrica 2', 'Baixa']];
@@ -36,7 +36,7 @@ let s = 0;
 for (const p of pessoas) for (const data of [somar(hoje, -1), somar(hoje, -2)]) {
   const minhas = ativs.filter(a => a.colaborador_id === p.id && a.data === data);
   if (!minhas.length) continue;
-  const r = env.rpc('publico.enviar', { colaborador_id: p.id, data, turno: 'Turno A', itens: minhas.map(a => { const st = sts[s++ % sts.length]; return st === 'pendente' ? { atividade_id: a.id, status: st, motivo: 'material', justificativa: 'Sem sobressalente' } : { atividade_id: a.id, status: st }; }), extras: [] });
+  const r = env.rpc('publico.enviar', { colaborador_id: p.id, data, turno: 'Turno B', itens: minhas.map(a => { const st = sts[s++ % sts.length]; return st === 'pendente' ? { atividade_id: a.id, status: st, motivo: 'material', justificativa: 'Sem sobressalente' } : { atividade_id: a.id, status: st }; }), extras: [] });
   if (!r.ok) console.log('SEED envio', r.erro);
 }
 

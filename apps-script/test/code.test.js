@@ -42,8 +42,8 @@ test('fluxo completo: cadastro, programação, entrada por matrícula, apontamen
   const { env, g } = gestao();
   const eq = g('equipe.salvar', { nome: 'AGA' }).dados;
   const c = g('colaborador.salvar', { nome: 'José Nilson', equipe_id: eq.id, matricula: '0102345', regime: 'Turno', letra: 'B' }).dados;
-  assert.match(g('colaborador.salvar', { nome: 'Outro', equipe_id: eq.id, matricula: '102345', letra: 'A' }).erro, /mesma matrícula|já existe/i);
-  assert.strictEqual(g('colaborador.salvar', { nome: 'Sem Mat', equipe_id: eq.id, letra: 'A' }).ok, false);
+  assert.match(g('colaborador.salvar', { nome: 'Outro', equipe_id: eq.id, matricula: '102345', letra: 'B' }).erro, /mesma matrícula|já existe/i);
+  assert.strictEqual(g('colaborador.salvar', { nome: 'Sem Mat', equipe_id: eq.id, letra: 'B' }).ok, false);
 
   const h = hoje(), ontem = somar(h, -1), amanha = somar(h, 1);
   const base = { colaborador_id: c.id, prioridade: 'Alta', equipamento: 'TR-02', area: 'SE-02' };
@@ -52,7 +52,7 @@ test('fluxo completo: cadastro, programação, entrada por matrícula, apontamen
   const a3 = g('atividade.salvar', { ...base, os: '3', descricao: 'C (ontem)', data: ontem }).dados;
 
   // entrada: matrícula (com ou sem zeros à esquerda) + turno
-  assert.match(env.rpc('publico.entrar', { matricula: '999', turno: 'Turno A' }).erro, /não encontrada/);
+  assert.match(env.rpc('publico.entrar', { matricula: '999', turno: 'Turno B' }).erro, /não encontrada/);
   const auto = env.rpc('publico.entrar', { matricula: '102345' });
   assert.strictEqual(auto.dados.perfil.turno, 'Turno B', 'sem turno informado usa a letra do cadastro');
   const ent = env.rpc('publico.entrar', { matricula: '102345', turno: 'Turno B' });
@@ -133,7 +133,7 @@ test('fluxo completo: cadastro, programação, entrada por matrícula, apontamen
 
   assert.strictEqual(g('equipe.excluir', { id: eq.id }).ok, false);
   assert.strictEqual(g('colaborador.inativar', { id: c.id }).ok, true);
-  assert.match(env.rpc('publico.entrar', { matricula: '102345', turno: 'Turno A' }).erro, /não encontrada/);
+  assert.match(env.rpc('publico.entrar', { matricula: '102345', turno: 'Turno B' }).erro, /não encontrada/);
 });
 
 test('folga: colaborador do regime ADM não recebe atividade no fim de semana', () => {
@@ -150,7 +150,7 @@ test('folga: colaborador do regime ADM não recebe atividade no fim de semana', 
 test('cache de leitura: evita ler a planilha e é invalidado por gravações', () => {
   const { env, g } = gestao();
   const eq = g('equipe.salvar', { nome: 'A' }).dados;
-  g('colaborador.salvar', { nome: 'Zé', equipe_id: eq.id, matricula: '10', letra: 'A' });
+  g('colaborador.salvar', { nome: 'Zé', equipe_id: eq.id, matricula: '10', letra: 'B' });
   env.rpc('publico.entrar', { matricula: '10' }); // aquece o cache
   const antes = env.stats.leituras;
   for (let i = 0; i < 5; i++) assert.strictEqual(env.rpc('publico.entrar', { matricula: '10' }).ok, true);
@@ -193,17 +193,17 @@ test('migração: abas antigas ganham as colunas novas sem perder dados', () => 
   assert.strictEqual(env.rpc('publico.entrar', { matricula: '77' }).dados.perfil.regime, 'ADM');
 });
 
-test('letras: turno exige A/B/C, ADM não tem letra; turno automático pelo cadastro', () => {
+test('letras: turno exige B ou C, ADM não tem letra; turno automático pelo cadastro', () => {
   const { env, g } = gestao();
   assert.match(g('colaborador.salvar', { nome: 'X', matricula: '1', regime: 'Turno' }).erro, /letra/i);
-  assert.match(g('colaborador.salvar', { nome: 'X', matricula: '1', regime: 'Turno', letra: 'D' }).erro, /letra/i);
+  assert.match(g('colaborador.salvar', { nome: 'X', matricula: '1', regime: 'Turno', letra: 'A' }).erro, /letra/i);
   const adm = g('colaborador.salvar', { nome: 'Adm', matricula: '2', regime: 'ADM', letra: 'B' }).dados;
   assert.strictEqual(adm.letra, '');
   const c = g('colaborador.salvar', { nome: 'Turnista', matricula: '3', regime: 'Turno', letra: 'c' }).dados;
   assert.strictEqual(c.letra, 'C');
   assert.strictEqual(env.rpc('publico.entrar', { matricula: '3' }).dados.perfil.turno, 'Turno C');
   assert.strictEqual(env.rpc('publico.entrar', { matricula: '2' }).dados.perfil.turno, 'Administrativo');
-  assert.strictEqual(env.rpc('publico.entrar', { matricula: '3', turno: 'Turno A' }).dados.perfil.turno, 'Turno A', 'pode cobrir outro turno');
+  assert.strictEqual(env.rpc('publico.entrar', { matricula: '3', turno: 'Turno B' }).dados.perfil.turno, 'Turno B', 'pode cobrir outro turno');
   const ad = g('aderencia', {}).dados || g('painel', { periodo: 'dia' }).dados.aderencia;
   const linha = g('painel', { periodo: 'dia' }).dados.aderencia.colaboradores.find(x => x.nome === 'Turnista');
   assert.strictEqual(linha.letra, 'C'); assert.strictEqual(linha.regime, 'Turno');
@@ -212,7 +212,7 @@ test('letras: turno exige A/B/C, ADM não tem letra; turno automático pelo cada
 test('excluir colaborador: OS futuras vão ao backlog e o histórico é mantido', () => {
   const { env, g } = gestao();
   const eq = g('equipe.salvar', { nome: 'A' }).dados;
-  const c = g('colaborador.salvar', { nome: 'Sai', matricula: '9', equipe_id: eq.id, letra: 'A' }).dados;
+  const c = g('colaborador.salvar', { nome: 'Sai', matricula: '9', equipe_id: eq.id, letra: 'B' }).dados;
   const h = hoje(), ontem = somar(h, -1), amanha = somar(h, 1);
   const passada = g('atividade.salvar', { os: '1', descricao: 'passada', data: ontem, colaborador_id: c.id }).dados;
   const futura = g('atividade.salvar', { os: '2', descricao: 'futura', data: amanha, colaborador_id: c.id }).dados;
@@ -230,7 +230,7 @@ test('excluir colaborador: OS futuras vão ao backlog e o histórico é mantido'
 test('folga arrastada para a programação: criar, mover, bloquear conflito e excluir', () => {
   const { env, g } = gestao();
   const eq = g('equipe.salvar', { nome: 'A' }).dados;
-  const c = g('colaborador.salvar', { nome: 'Turnista', matricula: '5', equipe_id: eq.id, letra: 'A' }).dados;
+  const c = g('colaborador.salvar', { nome: 'Turnista', matricula: '5', equipe_id: eq.id, letra: 'B' }).dados;
   const adm = g('colaborador.salvar', { nome: 'Adm', matricula: '6', equipe_id: eq.id, regime: 'ADM' }).dados;
   const h = hoje(), d1 = somar(h, 1), d2 = somar(h, 2);
   const f = g('folga.salvar', { colaborador_id: c.id, data: d1 });
