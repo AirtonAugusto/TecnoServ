@@ -294,3 +294,17 @@ table.tab td { padding: 10px; border-bottom: 1px solid var(--line-2); vertical-a
 .assinatura.lateral { color: #8A94A1; padding: 0 4px; } .assinatura.lateral b { color: #C9CED6; }
 .assinatura.clara { padding: 28px 0 0; }
 @media print { .assinatura.lateral { display: none; } }
+
+/* ---------- piadas internas, grupos e folgas ---------- */
+.piada { font-size: 13px; line-height: 1.4; color: #92400E; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 10px; padding: 8px 10px; }
+.grp { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #F3F4F6; border-bottom: 1px solid var(--line-2); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.grp span { font-weight: 500; color: var(--mut); text-transform: none; letter-spacing: 0; }
+.grp .bolha { width: 22px; height: 22px; border-radius: 6px; background: var(--ink); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+.folga-card { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; padding: 8px 10px; border-radius: 9px; border: 1.5px dashed #9AA3AF; background: #fff; color: var(--ink-2); font-size: 12px; font-weight: 600; cursor: grab; text-align: left; }
+.folga-card .x { width: 22px; height: 22px; border: none; background: transparent; color: var(--mut); border-radius: 6px; display: flex; align-items: center; justify-content: center; padding: 0; }
+.folga-card .x:hover { background: #F3F4F6; color: #B91C1C; }
+.paleta { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: #F8F9FA; border: 1px dashed var(--field); }
+.paleta p { font-size: 12px; color: var(--mut); line-height: 1.4; }
+.paleta .folga-card { cursor: grab; }
+.tab tr.grp-l td { background: #F3F4F6; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); padding: 8px 10px; }
+.tab tr.grp-l span { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--mut); }

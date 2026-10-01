@@ -2,7 +2,7 @@
 /* ===== Aderência da programação ===== */
 const Dash = (() => {
   const PERIODOS = [['dia', 'Dia'], ['semana', 'Semana'], ['mes', 'Mês']];
-  let S = { periodo: 'semana', equipe: 'all', pessoa: 'all', dados: null, hora: '' };
+  let S = { periodo: 'semana', equipe: 'all', turno: 'all', pessoa: 'all', dados: null, hora: '' };
   let el = null;
 
   const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
@@ -18,8 +18,9 @@ const Dash = (() => {
     const D = S.dados, meta = D.aderencia.meta;
     const pessoasTodas = D.aderencia.colaboradores;
     const equipes = D.equipes;
-    const pessoas = pessoasTodas.filter(c => (S.equipe === 'all' || c.equipe_id === S.equipe) && (S.pessoa === 'all' || c.id === S.pessoa));
-    const opcoesPessoa = pessoasTodas.filter(c => S.equipe === 'all' || c.equipe_id === S.equipe);
+    const naEquipeTurno = c => (S.equipe === 'all' || c.equipe_id === S.equipe) && (S.turno === 'all' || grupoDe(c) === S.turno);
+    const pessoas = pessoasTodas.filter(c => naEquipeTurno(c) && (S.pessoa === 'all' || c.id === S.pessoa));
+    const opcoesPessoa = pessoasTodas.filter(naEquipeTurno);
     const t = k => somar(pessoas, k);
     const pl = t('programadas'), co = t('concluidas'), np = t('no_prazo'), pa = t('iniciadas'), pe = t('pendentes'), sa = t('sem_apontamento'), xb = t('extras_bpf'), xc = t('extras_corretiva');
     const ex = xb + xc, ader = pct(co, pl), prazo = pct(np, pl);
@@ -42,13 +43,14 @@ const Dash = (() => {
     const maxP = Math.max(1, ...pessoas.map(p => p.programadas));
     const mot = Object.keys(MOTIVOS).map(k => ({ k, rotulo: MOTIVOS[k], v: pessoas.reduce((n, p) => n + ((p.motivos || {})[k] || 0), 0) }));
     const maxM = Math.max(1, ...mot.map(m => m.v));
-    const filtrado = S.equipe !== 'all' || S.pessoa !== 'all';
+    const filtrado = S.equipe !== 'all' || S.turno !== 'all' || S.pessoa !== 'all';
     const vazio = !pl && !ex;
 
     el.innerHTML = Adm.cabecalho(esc(rotulo(D.aderencia)), 'Aderência da programação', `<div class="sync"><span class="dot"></span>Sincronizado com a planilha · atualizado às ${esc(S.hora)}</div>`) + `
     <section class="cartao filtros" aria-label="Filtros">
       <div class="lb">Período<div class="per" role="group">${PERIODOS.map(([k, n]) => `<button type="button" data-per="${k}" aria-pressed="${k === S.periodo}">${n}</button>`).join('')}</div></div>
       <label class="lb">Equipe<select id="f-eq"><option value="all">Todas as equipes</option>${equipes.map(e => `<option value="${e.id}" ${e.id === S.equipe ? 'selected' : ''}>${esc(e.nome)}</option>`).join('')}</select></label>
+      <label class="lb">Turno<select id="f-tu"><option value="all">Todos os turnos</option>${GRUPOS.filter(g => g[0] !== '?').map(([k, n]) => `<option value="${k}" ${k === S.turno ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
       <label class="lb">Colaborador<select id="f-pe"><option value="all">Todos os colaboradores</option>${opcoesPessoa.map(p => `<option value="${p.id}" ${p.id === S.pessoa ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></label>
       ${filtrado ? '<button type="button" class="btn link" id="f-limpar" style="min-height:44px">Limpar filtros</button>' : ''}
     </section>
@@ -84,7 +86,7 @@ const Dash = (() => {
       <div class="cartao bloco span2">
         <div class="l1"><h2>Planejado vs. executado por colaborador</h2><span style="font-size:13px;color:#5B6470">Concluídas / programadas</span></div>
         <div style="display:flex;flex-direction:column;gap:14px">${pessoas.map(p => `<div class="pbar">
-          <div class="n">${avatar(p.nome, p.id, 32, 12)}<span style="min-width:0"><b>${esc(p.nome)}</b><small>${esc(p.equipe)}</small></span></div>
+          <div class="n">${avatar(p.nome, p.id, 32, 12)}<span style="min-width:0"><b>${esc(p.nome)}</b><small>${esc(p.equipe)} · ${esc(rotuloTurno(p))}</small></span></div>
           <div class="b"><div class="bar" style="background:#C9CED6;width:${((p.programadas / maxP) * 100).toFixed(1)}%"></div><div class="bar" style="background:#1C2430;width:${((p.concluidas / maxP) * 100).toFixed(1)}%"></div></div>
           <div class="r num"><b>${pct(p.concluidas, p.programadas)}%</b><span> · ${p.concluidas}/${p.programadas}</span></div></div>`).join('') || '<div style="color:#5B6470">Nenhum colaborador para o filtro escolhido.</div>'}</div>
       </div>
@@ -95,8 +97,9 @@ const Dash = (() => {
 
     $$('[data-per]', el).forEach(b => b.onclick = () => { if (b.dataset.per !== S.periodo) { S.periodo = b.dataset.per; carregar(); } });
     $('#f-eq', el).onchange = e => { S.equipe = e.target.value; S.pessoa = 'all'; desenhar(); };
+    $('#f-tu', el).onchange = e => { S.turno = e.target.value; S.pessoa = 'all'; desenhar(); };
     $('#f-pe', el).onchange = e => { S.pessoa = e.target.value; desenhar(); };
-    const l = $('#f-limpar', el); if (l) l.onclick = () => { S.equipe = 'all'; S.pessoa = 'all'; desenhar(); };
+    const l = $('#f-limpar', el); if (l) l.onclick = () => { S.equipe = 'all'; S.turno = 'all'; S.pessoa = 'all'; desenhar(); };
   }
 
   async function carregar() {

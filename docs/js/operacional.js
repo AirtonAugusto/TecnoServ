@@ -114,7 +114,7 @@ const Op = (() => {
             <label class="fld p">Observações do turno<textarea class="inp" id="op-obs" rows="3" maxlength="2000" placeholder="Ocorrências, pendências para o próximo turno…">${esc(E.obs)}</textarea></label>
           </section>
           <div class="painel" style="padding:16px;gap:8px">
-            <div aria-live="polite">${E.showErr && faltam ? `<div class="erro" style="padding-bottom:2px">${icone('alerta', 's')}${faltam === 1 ? '1 atividade sem status completo' : faltam + ' atividades sem status completo'}</div>` : ''}</div>
+            <div aria-live="polite">${E.showErr && faltam ? `<div class="erro" style="padding-bottom:2px">${icone('alerta', 's')}${faltam === 1 ? '1 atividade sem status completo' : faltam + ' atividades sem status completo'}</div><div class="piada">${esc(E.piada || fraseMalha())}</div>` : ''}</div>
             <button type="button" class="enviar ${E.sent ? 'ok' : ''}" id="op-enviar">${icone('enviar')}${E.sent ? 'Relatório enviado às ' + E.sentAt : (E.jaEnviado ? 'Reenviar relatório do turno' : 'Enviar relatório do turno')}</button>
           </div>
         </aside>
@@ -170,7 +170,7 @@ const Op = (() => {
     const lista = todos();
     const incompleto = lista.some(c => faltando(c)) || E.d.anteriores.some(a => faltando({ ...a, tipoCard: 'prog' }, true));
     if (incompleto) {
-      E.showErr = true; desenhar();
+      E.showErr = true; E.piada = fraseMalha(); desenhar();
       const p = $('.erro-c'); if (p) p.scrollIntoView({ block: 'center', behavior: 'smooth' });
       return;
     }

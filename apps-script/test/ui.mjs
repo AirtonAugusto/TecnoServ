@@ -17,8 +17,8 @@ const g = (m, a) => { const r = env.rpc('gestao.' + m, { ...a, token: tok }); if
 
 // ---- dados de exemplo ----
 const eqA = g('equipe.salvar', { nome: 'Alta Tensão · AGA' }), eqB = g('equipe.salvar', { nome: 'SM&A' }), eqC = g('equipe.salvar', { nome: 'Cardozo' });
-const pessoas = [['Neyberte', '100001', eqA, 'ADM'], ['José Nilson', '102345', eqA, 'Turno'], ['Thiago', '100003', eqB, 'ADM'], ['Técnico 4', '100004', eqC, 'Turno'], ['Técnico 5', '100005', eqC, 'ADM']]
-  .map(([n, m, e, r]) => g('colaborador.salvar', { nome: n, matricula: m, equipe_id: e.id, regime: r }));
+const pessoas = [['Neyberte', '100001', eqA, 'ADM', ''], ['José Nilson', '102345', eqA, 'Turno', 'B'], ['Thiago', '100003', eqB, 'ADM', ''], ['Técnico 4', '100004', eqC, 'Turno', 'C'], ['Técnico 5', '100005', eqC, 'ADM', ''], ['Marcos', '100006', eqA, 'Turno', 'A']]
+  .map(([n, m, e, r, l]) => g('colaborador.salvar', { nome: n, matricula: m, equipe_id: e.id, regime: r, letra: l }));
 const TAREFAS = [['Inspeção termográfica dos barramentos', 'QGBT-01 · Painel principal', 'Subestação Principal', 'Alta'], ['Medição de resistência de isolamento', 'Transformador TR-02 · 13,8 kV', 'SE-02 · Moagem', 'Média'],
   ['Teste funcional do relé de proteção 50/51', 'Disjuntor DJ-05', 'Subestação Principal', 'Alta'], ['Limpeza e reaperto de conexões', 'CCM-03', 'Planta de beneficiamento', 'Média'], ['Verificação do banco de baterias', 'Retificador RT-02', 'Sala elétrica 2', 'Baixa']];
 const seg = (() => { const w = new Date(hoje + 'T00:00:00Z').getUTCDay() || 7; return somar(hoje, 1 - w); })();
@@ -59,14 +59,14 @@ await p.goto(docs); await p.waitForSelector('.split');
 await p.screenshot({ path: out + 'N_login.png' });
 await p.fill('#l-mat', '999'); await p.click('#l-ok'); await p.waitForSelector('#l-erro:not([hidden])');
 log('matrícula inválida:', (await p.textContent('#l-erro')).trim());
-await p.fill('#l-mat', '102345'); await p.selectOption('#l-turno', 'Turno A'); await p.click('#l-ok');
+await p.fill('#l-mat', '102345'); await p.click('#l-ok'); // turno automático (pelo cadastro: Turno B)
 await p.waitForSelector('.ativ');
 log('cards:', await p.locator('.ativ').count(), '| header:', (await p.textContent('.topo .quem')).replace(/\s+/g, ' ').trim());
 
 // ---------- apontamento ----------
 await p.click('.opt[data-st=pendente] >> nth=0'); // primeira OS como pendente
 await p.click('#op-enviar'); await p.waitForTimeout(200);
-log('erro ao enviar incompleto:', (await p.textContent('.painel .erro').catch(() => '')).trim());
+log('erro ao enviar incompleto:', (await p.textContent('.painel .erro').catch(() => '')).trim(), '| piada:', (await p.textContent('.piada').catch(() => '(nenhuma)')).trim());
 const m2 = await p.locator('[data-mot]').count();
 await p.selectOption('[data-mot]', 'liberacao'); await p.fill('[data-just]', 'Sem liberação da operação');
 // marcar o restante como concluída
@@ -107,6 +107,14 @@ log('backlog depois de programar:', await p.locator('#p-backlog .task').count())
 await p.click('#p-nova'); await p.fill('#m-os', '40019999'); await p.fill('#m-desc', 'OS de teste'); await p.fill('#m-equip', 'TR-09'); await p.click('#m-save'); await p.waitForTimeout(400);
 log('criou OS:', await p.locator('.task', { hasText: 'OS de teste' }).count());
 await p.click('.task[data-t] >> nth=0'); await p.waitForSelector('#m-form'); await p.screenshot({ path: out + 'N_modal.png' }); await p.click('#m-cancel');
+// folga arrastada da paleta para um dia livre
+const alvo = p.locator('.celula:not(.folga):not(:has(.task))').nth(1);
+const folgasAntes = await p.locator('.folga-card[data-fid]').count();
+await p.locator('[data-fnova]').dragTo(alvo); await p.waitForTimeout(500);
+log('folga marcada:', folgasAntes, '→', await p.locator('.folga-card[data-fid]').count(), '| grupos na grade:', (await p.locator('.grade .grp').allTextContents()).map(t => t.replace(/\s+/g, ' ').trim()).join(' / '));
+await p.screenshot({ path: out + 'N_prog2.png', fullPage: true });
+await p.locator('.folga-card[data-fid] .x').first().click(); await p.waitForTimeout(400);
+log('folga removida:', await p.locator('.folga-card[data-fid]').count());
 await p.click('.sem >> nth=1'); await p.waitForTimeout(150);
 log('semana 2 selecionada:', await p.locator('.sem[aria-selected=true] b').textContent());
 
@@ -116,8 +124,12 @@ await p.click('[data-fotos]'); await p.waitForSelector('.fotos-rel img'); log('f
 await p.screenshot({ path: out + 'N_rel.png', fullPage: true });
 
 await p.click('.nav[data-aba=cadastros]'); await p.waitForSelector('#c-fc');
-await p.fill('#c-nome', 'Novo Colaborador'); await p.fill('#c-mat', '555'); await p.click('#c-fc .btn.pri'); await p.waitForTimeout(400);
-log('cadastrou:', await p.locator('#c-fc ~ div tr', { hasText: 'Novo Colaborador' }).count());
+await p.selectOption('#c-reg', 'ADM'); log('letra escondida p/ ADM:', !(await p.locator('#c-letra').isVisible()));
+await p.selectOption('#c-reg', 'Turno'); await p.selectOption('#c-letra', 'B');
+await p.fill('#c-nome', 'Novo Colaborador'); await p.fill('#c-mat', '555'); await p.click('#c-fc .btn.pri'); await p.waitForTimeout(500);
+log('cadastrou:', await p.locator('tr', { hasText: 'Novo Colaborador' }).count(), '| grupos:', (await p.locator('tr.grp-l').allTextContents()).map(t => t.replace(/\s+/g, ' ').trim()).join(' / '));
+await p.locator('tr', { hasText: 'Novo Colaborador' }).locator('[data-exc]').click(); await p.waitForTimeout(500);
+log('excluiu:', await p.locator('tr', { hasText: 'Novo Colaborador' }).count() === 0);
 await p.screenshot({ path: out + 'N_cad.png', fullPage: true });
 await p.click('#adm-sair'); await p.waitForSelector('.split');
 log('erros:', errs);

@@ -7,9 +7,12 @@ const Prog = (() => {
 
   const TAGS = ['Vigente · W', 'W+1', 'W+2'];
   const pessoa = id => (C.colaboradores || []).find(c => c.id === id);
-  const folga = (p, dataIso) => !!p && !!dataIso && p.regime === 'ADM' && diaIdx(dataIso) >= 5;
+  const folgaImplicita = (p, dataIso) => !!p && !!dataIso && p.regime === 'ADM' && diaIdx(dataIso) >= 5;
+  const folgaMarcada = (colabId, dataIso) => (C.folgas || []).find(f => f.colaborador_id === colabId && f.data === dataIso);
+  const folga = (p, dataIso) => !!p && (folgaImplicita(p, dataIso) || !!folgaMarcada(p.id, dataIso));
+  const ordenados = () => [...C.colaboradores].sort((a, b) => GRUPOS.findIndex(g => g[0] === grupoDe(a)) - GRUPOS.findIndex(g => g[0] === grupoDe(b)) || a.nome.localeCompare(b.nome));
   const nomeEquipe = id => ((C.equipes || []).find(e => e.id === id) || {}).nome || '';
-  const metaPessoa = p => [nomeEquipe(p.equipe_id), p.regime === 'ADM' ? 'ADM' : 'Turno'].filter(Boolean).join(' · ');
+  const metaPessoa = p => [nomeEquipe(p.equipe_id), rotuloTurno(p)].filter(Boolean).join(' · ');
 
   function cartao(t, compacto) {
     const s = STATUS[t.status] || STATUS.programada, p = pessoa(t.colaborador_id);
@@ -35,22 +38,26 @@ const Prog = (() => {
     const cont = { total: dentro.length + extrasSem.length };
     ['programada', 'concluida', 'iniciada', 'pendente'].forEach(k => { cont[k] = dentro.filter(t => t.status === k).length; });
     cont.extra = extrasSem.length;
+    cont.folga = (C.folgas || []).filter(f => f.data >= w.inicio && f.data <= w.dias[6]).length;
     const abas = C.semanas.map((s, i) => {
       const n = C.atividades.filter(t => t.data >= s.inicio && t.data <= s.dias[6]).length;
       return `<button type="button" class="sem" role="tab" aria-selected="${i === semana}" data-sem="${i}"><span class="a"><b>Semana ${s.numero}</b><span class="tag">${TAGS[i]}</span></span><span class="b"><span class="mono">${fmtData(s.inicio)} – ${fmtData(s.dias[6])}</span><span>${n} OS</span></span></button>`;
     }).join('');
-    const resumo = [['Total', cont.total, '#14181F'], ['Programada', cont.programada, '#9AA3AF'], ['Concluída', cont.concluida, '#22C55E'], ['Iniciada / Parcial', cont.iniciada, '#EAB308'], ['Pendente', cont.pendente, '#EF4444'], ['Atividade extra', cont.extra, '#3B82F6']]
+    const resumo = [['Total', cont.total, '#14181F'], ['Programada', cont.programada, '#9AA3AF'], ['Concluída', cont.concluida, '#22C55E'], ['Iniciada / Parcial', cont.iniciada, '#EAB308'], ['Pendente', cont.pendente, '#EF4444'], ['Atividade extra', cont.extra, '#3B82F6'], ['Folga', cont.folga, '#C9CED6']]
       .map(([n, v, c]) => `<span><span class="dot" style="background:${c}"></span>${n} <strong class="num" style="color:#14181F">${v}</strong></span>`).join('');
-    const linhas = C.colaboradores.map(p => {
+    let grupoAtual = null;
+    const linhas = ordenados().map(p => {
       const cel = w.dias.map((d, di) => {
-        const off = folga(p, d), chave = p.id + ':' + di, hoje = d === C.hoje;
+        const impl = folgaImplicita(p, d), marc = folgaMarcada(p.id, d), off = impl || !!marc, chave = p.id + ':' + di, hoje = d === C.hoje;
         const tarefas = dentro.filter(t => t.colaborador_id === p.id && t.data === d);
         const extras = extrasSem.filter(x => x.colaborador_id === p.id && x.data === d);
-        return `<div class="celula ${off ? 'folga' : (sobre === chave ? 'sobre' : (hoje ? 'hoje' : ''))}" data-cel="${chave}" data-d="${d}" data-p="${p.id}">${off ? '<div class="fg">Folga</div>' :
+        return `<div class="celula ${off ? 'folga' : (sobre === chave ? 'sobre' : (hoje ? 'hoje' : ''))}" data-cel="${chave}" data-d="${d}" data-p="${p.id}">${impl ? '<div class="fg">Folga</div>' : marc ? `<div class="folga-card" draggable="true" data-fid="${marc.id}" title="Arraste para outro dia ou para o backlog para remover"><span>Folga</span><button type="button" class="x" data-fx="${marc.id}" aria-label="Remover folga de ${esc(p.nome)}">${icone('x', 's')}</button></div>` :
           tarefas.map(t => cartao(t, true)).join('') + extras.map(cartaoExtra).join('') +
           `<button type="button" class="add" data-add="${chave}" aria-label="Adicionar OS para ${esc(p.nome)} em ${DIAS_LONGOS[di]} ${fmtData(d)}">${icone('mais', 's')}</button>`}</div>`;
       }).join('');
-      return `<div class="lin"><div class="pes">${avatar(p.nome, p.id, 30, 12)}<b>${esc(p.nome)}</b><small>${esc(metaPessoa(p))}</small></div>${cel}</div>`;
+      const g = grupoDe(p), n = C.colaboradores.filter(c => grupoDe(c) === g).length;
+      const cab = g !== grupoAtual ? (grupoAtual = g, `<div class="grp"><span class="bolha">${g === 'ADM' ? '·' : g === '?' ? '?' : g}</span>${rotuloGrupo(g)}<span>${n} ${n === 1 ? 'pessoa' : 'pessoas'}${g === 'ADM' ? ' · não rodam turno' : ''}</span></div>`) : '';
+      return `${cab}<div class="lin"><div class="pes">${avatar(p.nome, p.id, 30, 12)}<b>${esc(p.nome)}</b><small>${esc(metaPessoa(p))}</small></div>${cel}</div>`;
     }).join('');
 
     el.innerHTML = Adm.cabecalho('Horizonte de 3 semanas · ISO 8601', 'Programação semanal', `<button type="button" class="btn-nova" id="p-nova">${icone('mais')}Nova OS</button>`) + `
@@ -62,6 +69,7 @@ const Prog = (() => {
         ${linhas || '<div style="padding:24px;color:#5B6470">Cadastre colaboradores em “Cadastros” para montar a programação.</div>'}
       </div></section>
       <aside class="backlog ${sobre === 'backlog' ? 'sobre' : ''}" id="p-backlog" aria-label="Carteira de backlog">
+        <div class="paleta"><div class="folga-card" draggable="true" data-fnova="1"><span>🏖️ Folga</span></div><p>Arraste a folga para o dia de quem vai folgar. Para remover, arraste de volta para cá ou clique no ×.</p></div>
         <h2>Carteira de backlog<span class="num">${C.backlog.length} OS</span></h2>
         <p>Fora do horizonte de 3 semanas. Arraste para a grade para programar.</p>
         ${C.backlog.map(t => cartao(t, false)).join('') || '<p>Nenhuma OS no backlog.</p>'}
@@ -96,19 +104,51 @@ const Prog = (() => {
       b.ondragstart = e => { try { e.dataTransfer.setData('text/plain', b.dataset.t); e.dataTransfer.effectAllowed = 'copyMove'; } catch (_) { /* ignora */ } arrasto = b.dataset.t; };
       b.ondragend = () => { arrasto = null; sobre = null; desenhar(); };
     });
+    // Folgas: arrastar da paleta (nova) ou entre dias; × ou arrastar ao backlog remove
+    const arrastarFolga = (b, payload) => { b.ondragstart = e => { try { e.dataTransfer.setData('text/plain', payload); e.dataTransfer.effectAllowed = 'move'; } catch (_) { /* ignora */ } e.stopPropagation(); }; };
+    $$('[data-fnova]', el).forEach(b => arrastarFolga(b, 'f:novo'));
+    $$('[data-fid]', el).forEach(b => arrastarFolga(b, 'f:' + b.dataset.fid));
+    $$('[data-fx]', el).forEach(b => b.onclick = e => { e.stopPropagation(); removerFolga(b.dataset.fx); });
     $$('[data-cel]', el).forEach(c => {
       const p = pessoa(c.dataset.p);
       c.ondragover = e => { if (folga(p, c.dataset.d)) return; e.preventDefault(); if (sobre !== c.dataset.cel) { sobre = c.dataset.cel; $$('.celula.sobre', el).forEach(x => x.classList.remove('sobre')); c.classList.add('sobre'); } };
       c.ondrop = e => {
         e.preventDefault(); if (folga(p, c.dataset.d)) return;
         const id = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || arrasto; if (!id) return;
+        if (id.startsWith('f:')) return soltarFolga(id, c.dataset.d, c.dataset.p);
         if (e.ctrlKey || e.altKey) duplicarPara(id, c.dataset.d, c.dataset.p); else mover(id, c.dataset.d, c.dataset.p);
       };
     });
     const bk = $('#p-backlog', el);
     bk.ondragover = e => { e.preventDefault(); if (sobre !== 'backlog') { sobre = 'backlog'; bk.classList.add('sobre'); } };
     bk.ondragleave = () => { bk.classList.remove('sobre'); };
-    bk.ondrop = e => { e.preventDefault(); const id = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || arrasto; if (id) mover(id, '', ''); };
+    bk.ondrop = e => {
+      e.preventDefault(); const id = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || arrasto; if (!id) return;
+      if (id.startsWith('f:')) { if (id !== 'f:novo') removerFolga(id.slice(2)); return; }
+      mover(id, '', '');
+    };
+  }
+
+  // Marca ou move uma folga (mostra na hora e confirma com o servidor)
+  async function soltarFolga(payload, data, colabId) {
+    const p = pessoa(colabId); if (!p) return;
+    if (folgaImplicita(p, data)) return toast(`${p.nome} já tem folga neste dia (ADM)`, true);
+    if (folgaMarcada(colabId, data)) return toast(`${p.nome} já está de folga neste dia`, true);
+    if (C.atividades.some(t => t.colaborador_id === colabId && t.data === data)) return toast(`Já há OS programada para ${p.nome} neste dia. Mova a OS antes.`, true);
+    const id = payload === 'f:novo' ? '' : payload.slice(2);
+    if (id) { const f = C.folgas.find(x => x.id === id); if (f) { f.data = data; f.colaborador_id = colabId; } }
+    else C.folgas.push({ id: 'tmp-' + Date.now(), colaborador_id: colabId, data, descricao: 'Folga', origem: 'Folga' });
+    arrasto = null; sobre = null; desenhar();
+    toast(`Folga de ${p.nome} · ${diaSem(data)} ${fmtData(data)}`);
+    try { await rpc('gestao.folga.salvar', { id, colaborador_id: colabId, data }); if (!id) await carregar(); }
+    catch (e) { toast(e.message, true); carregar(); }
+  }
+  async function removerFolga(id) {
+    const f = C.folgas.find(x => x.id === id), p = f && pessoa(f.colaborador_id);
+    C.folgas = C.folgas.filter(x => x.id !== id); desenhar();
+    if (id.startsWith('tmp-')) return carregar();
+    toast(p ? `Folga de ${p.nome} removida` : 'Folga removida');
+    try { await rpc('gestao.folga.excluir', { id }); } catch (e) { toast(e.message, true); carregar(); }
   }
 
   async function duplicarPara(id, data, colabId) {

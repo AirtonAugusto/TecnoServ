@@ -10,11 +10,28 @@ const APP = {
   area: 'PCM Alta Tensão',
   equipes: 'AGA · Cardozo · SM&A',
   lema: 'Gestão de OS, aderência e programação',
+  supervisor: 'Poderoso',
   descricao: 'Apontamento do turno em campo, aderência por equipe e programação das próximas 3 semanas no mesmo lugar.',
 };
 const AUTOR = 'Airton C. M. Augusto';
 const assinatura = (cls = '') => `<div class="assinatura ${cls}">Desenvolvido por <b>${esc(AUTOR)}</b></div>`;
 const TURNOS = ['Turno A', 'Turno B', 'Turno C', 'Administrativo'];
+const LETRAS = ['A', 'B', 'C'];
+
+// Grupos de colaboradores: as letras (A, B, C) rodam turno; ADM não.
+const GRUPOS = [['A', 'Turno A'], ['B', 'Turno B'], ['C', 'Turno C'], ['ADM', 'ADM'], ['?', 'Sem letra']];
+const grupoDe = c => (c.regime === 'ADM' ? 'ADM' : (LETRAS.includes(c.letra) ? c.letra : '?'));
+const rotuloGrupo = k => (GRUPOS.find(g => g[0] === k) || GRUPOS[4])[1];
+const rotuloTurno = c => (c.regime === 'ADM' ? 'ADM' : (c.letra ? 'Turno ' + c.letra : 'Turno'));
+
+// Piadas internas para quando alguém esquece de preencher (troque o apelido em APP.supervisor)
+const FRASES_MALHA = [
+  () => 'Vai esquecer de preencher algo? Vai cair na malha fina! 🕵️',
+  () => `Esqueceu de preencher, hein? O ${APP.supervisor} está de olho 👀`,
+  () => `Deixou passar... o ${APP.supervisor} vê tudo, viu? 👀`,
+  () => 'Campo em branco detectado. Malha fina chamando! 📞',
+];
+const fraseMalha = () => FRASES_MALHA[Math.floor(Math.random() * FRASES_MALHA.length)]();
 const PRIORIDADES = ['Alta', 'Média', 'Baixa'];
 const MOTIVOS = {
   material: 'Falta de material / sobressalente',

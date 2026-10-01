@@ -41,11 +41,14 @@ No menu de funções do editor escolha **`preparar`** e clique em **▶ Executar
 ## Primeiro uso
 
 1. Abra o site → **PCM / Gestão** → e-mail e a senha de `GESTAO_SENHA`.
-2. **Cadastros:** crie as **equipes** e os **colaboradores**. Cada colaborador precisa de **matrícula** (é com ela que ele entra) e **regime**: *Turno* ou *ADM* (ADM tem folga no sábado e domingo).
+2. **Cadastros:** crie as **equipes** e os **colaboradores**. Cada colaborador precisa de **matrícula** (é com ela que ele entra) e do **regime**:
+   - **Turno** — roda as letras: escolha a **letra A, B ou C**.
+   - **ADM** — não roda turno, não tem letra e tem folga fixa no sábado e domingo.
+   - Dá para **Editar**, **Inativar** (tira do apontamento e mantém o histórico) ou **Excluir** de vez (as OS futuras voltam ao backlog e as folgas marcadas somem; o histórico de apontamentos fica).
    - Colaboradores cadastrados antes desta versão ficam sem matrícula: use **Editar** em cada um.
-3. **Programação:** crie as OS (*Nova OS* ou o **+** da célula). OS sem data ficam no **backlog** (coluna da direita); arraste para a grade para programar.
-4. O colaborador abre o site → **Colaborador** → **matrícula + turno** → marca o status de cada OS, registra extras, anexa fotos e envia.
-5. **Aderência** mostra os indicadores por Dia, Semana ou Mês, com filtros de equipe e colaborador. **Relatórios** mostra o turno enviado por equipe, com fotos.
+3. **Programação:** os colaboradores aparecem **agrupados por letra** (Turno A, B, C e ADM). Crie as OS (*Nova OS* ou o **+** da célula). OS sem data ficam no **backlog** (coluna da direita); arraste para a grade para programar. Para marcar uma **folga**, arraste o cartão **Folga** (coluna da direita) para o dia de quem vai folgar; para remover, clique no **×** ou arraste de volta. Não dá para marcar folga num dia que já tem OS, nem programar OS num dia de folga.
+4. O colaborador abre o site → **Colaborador** → **matrícula** (o turno vem do cadastro; ele pode trocar se estiver cobrindo outro turno) → marca o status de cada OS, registra extras, anexa fotos e envia. Se esquecer de preencher algo, o sistema avisa com as piadas internas (“malha fina”, “o Poderoso está de olho”). O apelido do supervisor e as frases ficam em `docs/js/core.js` (`APP.supervisor` e `FRASES_MALHA`).
+5. **Aderência** mostra os indicadores por Dia, Semana ou Mês, com filtros de equipe, **turno (letra)** e colaborador. **Relatórios** mostra o turno enviado por equipe, com fotos.
 
 ## Como funciona
 

@@ -41,9 +41,9 @@ test('sem GESTAO_SENHA o login avisa', () => {
 test('fluxo completo: cadastro, programação, entrada por matrícula, apontamento, aderência, fotos', () => {
   const { env, g } = gestao();
   const eq = g('equipe.salvar', { nome: 'AGA' }).dados;
-  const c = g('colaborador.salvar', { nome: 'José Nilson', equipe_id: eq.id, matricula: '0102345', regime: 'Turno' }).dados;
-  assert.match(g('colaborador.salvar', { nome: 'Outro', equipe_id: eq.id, matricula: '102345' }).erro, /mesma matrícula|já existe/i);
-  assert.strictEqual(g('colaborador.salvar', { nome: 'Sem Mat', equipe_id: eq.id }).ok, false);
+  const c = g('colaborador.salvar', { nome: 'José Nilson', equipe_id: eq.id, matricula: '0102345', regime: 'Turno', letra: 'B' }).dados;
+  assert.match(g('colaborador.salvar', { nome: 'Outro', equipe_id: eq.id, matricula: '102345', letra: 'A' }).erro, /mesma matrícula|já existe/i);
+  assert.strictEqual(g('colaborador.salvar', { nome: 'Sem Mat', equipe_id: eq.id, letra: 'A' }).ok, false);
 
   const h = hoje(), ontem = somar(h, -1), amanha = somar(h, 1);
   const base = { colaborador_id: c.id, prioridade: 'Alta', equipamento: 'TR-02', area: 'SE-02' };
@@ -53,6 +53,8 @@ test('fluxo completo: cadastro, programação, entrada por matrícula, apontamen
 
   // entrada: matrícula (com ou sem zeros à esquerda) + turno
   assert.match(env.rpc('publico.entrar', { matricula: '999', turno: 'Turno A' }).erro, /não encontrada/);
+  const auto = env.rpc('publico.entrar', { matricula: '102345' });
+  assert.strictEqual(auto.dados.perfil.turno, 'Turno B', 'sem turno informado usa a letra do cadastro');
   const ent = env.rpc('publico.entrar', { matricula: '102345', turno: 'Turno B' });
   assert.strictEqual(ent.ok, true, JSON.stringify(ent));
   assert.strictEqual(ent.dados.perfil.turno, 'Turno B');
@@ -138,7 +140,7 @@ test('folga: colaborador do regime ADM não recebe atividade no fim de semana', 
   const { g } = gestao();
   const eq = g('equipe.salvar', { nome: 'A' }).dados;
   const adm = g('colaborador.salvar', { nome: 'Ana ADM', equipe_id: eq.id, matricula: '1', regime: 'ADM' }).dados;
-  const turno = g('colaborador.salvar', { nome: 'Bia Turno', equipe_id: eq.id, matricula: '2', regime: 'Turno' }).dados;
+  const turno = g('colaborador.salvar', { nome: 'Bia Turno', equipe_id: eq.id, matricula: '2', regime: 'Turno', letra: 'C' }).dados;
   let sab = hoje(); while (dow(sab) !== 6) sab = somar(sab, 1);
   assert.match(g('atividade.salvar', { os: '1', descricao: 'X', data: sab, colaborador_id: adm.id }).erro, /folga/);
   assert.strictEqual(g('atividade.salvar', { os: '1', descricao: 'X', data: sab, colaborador_id: turno.id }).ok, true);
@@ -148,12 +150,12 @@ test('folga: colaborador do regime ADM não recebe atividade no fim de semana', 
 test('cache de leitura: evita ler a planilha e é invalidado por gravações', () => {
   const { env, g } = gestao();
   const eq = g('equipe.salvar', { nome: 'A' }).dados;
-  g('colaborador.salvar', { nome: 'Zé', equipe_id: eq.id, matricula: '10' });
+  g('colaborador.salvar', { nome: 'Zé', equipe_id: eq.id, matricula: '10', letra: 'A' });
   env.rpc('publico.entrar', { matricula: '10' }); // aquece o cache
   const antes = env.stats.leituras;
   for (let i = 0; i < 5; i++) assert.strictEqual(env.rpc('publico.entrar', { matricula: '10' }).ok, true);
   assert.strictEqual(env.stats.leituras, antes, 'leituras repetidas não devem tocar a planilha');
-  g('colaborador.salvar', { nome: 'Maria', equipe_id: eq.id, matricula: '11' });
+  g('colaborador.salvar', { nome: 'Maria', equipe_id: eq.id, matricula: '11', letra: 'B' });
   assert.strictEqual(env.rpc('publico.entrar', { matricula: '11' }).dados.perfil.nome, 'Maria');
   const lista = g('cadastros', {}).dados.colaboradores;
   g('colaborador.inativar', { id: lista.find(c => c.nome === 'Maria').id });
@@ -180,13 +182,80 @@ test('migração: abas antigas ganham as colunas novas sem perder dados', () => 
   const lista = env.rpc('gestao.cadastros', { token: tok }).dados.colaboradores;
   assert.strictEqual(lista[0].nome, 'Antigo');
   assert.strictEqual(lista[0].matricula, '');
-  assert.deepStrictEqual(env.planilhas.colaboradores[0], ['id', 'nome', 'equipe_id', 'ativo', 'matricula', 'regime']);
+  assert.deepStrictEqual(env.planilhas.colaboradores[0], ['id', 'nome', 'equipe_id', 'ativo', 'matricula', 'regime', 'letra']);
   // salvar preenche as colunas novas na posição certa
-  const r = env.rpc('gestao.colaborador.salvar', { id: 'c1', nome: 'Antigo', matricula: '77', regime: 'ADM', token: tok });
+  const r = env.rpc('gestao.colaborador.salvar', { id: 'c1', nome: 'Antigo', matricula: '77', regime: 'ADM', letra: 'B', token: tok });
   assert.strictEqual(r.ok, true, JSON.stringify(r));
-  assert.deepStrictEqual(env.planilhas.colaboradores[1], ['c1', 'Antigo', '', true, '77', 'ADM']);
-  const novo = env.rpc('gestao.colaborador.salvar', { nome: 'Novo', matricula: '78', token: tok });
+  assert.deepStrictEqual(env.planilhas.colaboradores[1], ['c1', 'Antigo', '', true, '77', 'ADM', '']); // ADM não tem letra
+  const novo = env.rpc('gestao.colaborador.salvar', { nome: 'Novo', matricula: '78', letra: 'C', token: tok });
   assert.strictEqual(novo.ok, true);
   assert.strictEqual(env.planilhas.colaboradores[2][4], '78');
   assert.strictEqual(env.rpc('publico.entrar', { matricula: '77' }).dados.perfil.regime, 'ADM');
+});
+
+test('letras: turno exige A/B/C, ADM não tem letra; turno automático pelo cadastro', () => {
+  const { env, g } = gestao();
+  assert.match(g('colaborador.salvar', { nome: 'X', matricula: '1', regime: 'Turno' }).erro, /letra/i);
+  assert.match(g('colaborador.salvar', { nome: 'X', matricula: '1', regime: 'Turno', letra: 'D' }).erro, /letra/i);
+  const adm = g('colaborador.salvar', { nome: 'Adm', matricula: '2', regime: 'ADM', letra: 'B' }).dados;
+  assert.strictEqual(adm.letra, '');
+  const c = g('colaborador.salvar', { nome: 'Turnista', matricula: '3', regime: 'Turno', letra: 'c' }).dados;
+  assert.strictEqual(c.letra, 'C');
+  assert.strictEqual(env.rpc('publico.entrar', { matricula: '3' }).dados.perfil.turno, 'Turno C');
+  assert.strictEqual(env.rpc('publico.entrar', { matricula: '2' }).dados.perfil.turno, 'Administrativo');
+  assert.strictEqual(env.rpc('publico.entrar', { matricula: '3', turno: 'Turno A' }).dados.perfil.turno, 'Turno A', 'pode cobrir outro turno');
+  const ad = g('aderencia', {}).dados || g('painel', { periodo: 'dia' }).dados.aderencia;
+  const linha = g('painel', { periodo: 'dia' }).dados.aderencia.colaboradores.find(x => x.nome === 'Turnista');
+  assert.strictEqual(linha.letra, 'C'); assert.strictEqual(linha.regime, 'Turno');
+});
+
+test('excluir colaborador: OS futuras vão ao backlog e o histórico é mantido', () => {
+  const { env, g } = gestao();
+  const eq = g('equipe.salvar', { nome: 'A' }).dados;
+  const c = g('colaborador.salvar', { nome: 'Sai', matricula: '9', equipe_id: eq.id, letra: 'A' }).dados;
+  const h = hoje(), ontem = somar(h, -1), amanha = somar(h, 1);
+  const passada = g('atividade.salvar', { os: '1', descricao: 'passada', data: ontem, colaborador_id: c.id }).dados;
+  const futura = g('atividade.salvar', { os: '2', descricao: 'futura', data: amanha, colaborador_id: c.id }).dados;
+  g('folga.salvar', { colaborador_id: c.id, data: somar(h, 3) });
+  assert.strictEqual(g('colaborador.excluir', { id: c.id }).ok, true);
+  assert.match(env.rpc('publico.entrar', { matricula: '9' }).erro, /não encontrada/);
+  assert.strictEqual(g('cadastros', {}).dados.colaboradores.length, 0);
+  const cal = g('calendario', {}).dados;
+  assert.deepStrictEqual(cal.backlog.map(x => x.id), [futura.id]);
+  assert.strictEqual(cal.folgas.length, 0, 'folgas do excluído somem');
+  assert.strictEqual(g('colaborador.excluir', { id: c.id }).ok, false);
+  assert.ok(passada.id);
+});
+
+test('folga arrastada para a programação: criar, mover, bloquear conflito e excluir', () => {
+  const { env, g } = gestao();
+  const eq = g('equipe.salvar', { nome: 'A' }).dados;
+  const c = g('colaborador.salvar', { nome: 'Turnista', matricula: '5', equipe_id: eq.id, letra: 'A' }).dados;
+  const adm = g('colaborador.salvar', { nome: 'Adm', matricula: '6', equipe_id: eq.id, regime: 'ADM' }).dados;
+  const h = hoje(), d1 = somar(h, 1), d2 = somar(h, 2);
+  const f = g('folga.salvar', { colaborador_id: c.id, data: d1 });
+  assert.strictEqual(f.ok, true, JSON.stringify(f));
+  assert.strictEqual(g('calendario', {}).dados.folgas.length, 1);
+  // não vira tarefa do colaborador nem entra na aderência / backlog
+  assert.strictEqual(g('calendario', {}).dados.backlog.length, 0);
+  assert.strictEqual(g('calendario', {}).dados.atividades.length, 0);
+  // no dia da folga não cabe OS; em outro dia cabe
+  assert.match(g('atividade.salvar', { os: '1', descricao: 'X', data: d1, colaborador_id: c.id }).erro, /folga/);
+  const os = g('atividade.salvar', { os: '1', descricao: 'X', data: d2, colaborador_id: c.id }).dados;
+  // não dá para marcar folga em dia com OS, nem repetir folga
+  assert.match(g('folga.salvar', { colaborador_id: c.id, data: d2 }).erro, /OS programada/);
+  assert.match(g('folga.salvar', { colaborador_id: c.id, data: d1 }).erro, /já está de folga/);
+  // mover a folga
+  const mov = g('folga.salvar', { id: f.dados.id, colaborador_id: c.id, data: somar(h, 4) });
+  assert.strictEqual(mov.ok, true);
+  assert.strictEqual(g('calendario', {}).dados.folgas[0].data, somar(h, 4));
+  // folga não pode ser editada como OS e ADM não precisa de folga no fim de semana
+  assert.strictEqual(g('atividade.salvar', { id: f.dados.id, descricao: 'x', data: d2 }).ok, false);
+  let sab = h; while (new Date(sab + 'T00:00:00Z').getUTCDay() !== 6) sab = somar(sab, 1);
+  assert.match(g('folga.salvar', { colaborador_id: adm.id, data: sab }).erro, /já tem folga/);
+  // excluir
+  assert.strictEqual(g('folga.excluir', { id: f.dados.id }).ok, true);
+  assert.strictEqual(g('calendario', {}).dados.folgas.length, 0);
+  assert.ok(os.id);
+  assert.strictEqual(env.rpc('publico.entrar', { matricula: '5' }).dados.tarefas.atividades.length, 0);
 });

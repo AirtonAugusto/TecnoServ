@@ -10,7 +10,7 @@ const Rel = (() => {
     alvo.innerHTML = lista.map(t => `<div class="cartao rel-eq">
       <h3>${esc(t.equipe)} · ${fmtDataCompleta(t.data)}</h3>
       <div style="display:flex;gap:6px;flex-wrap:wrap">${[['concluida', 'Concluídas', t.resumo.concluidas], ['iniciada', 'Parciais', t.resumo.iniciadas], ['pendente', 'Pendentes', t.resumo.pendentes], ['extra', 'Extras', t.resumo.extras]].map(([c, n, v]) => `<span class="tag ${c}">${n}: ${v}</span>`).join('')}</div>
-      ${t.pendentes_envio.length ? `<p class="nota">Ainda não enviaram: ${t.pendentes_envio.map(esc).join(', ')}</p>` : ''}
+      ${t.pendentes_envio.length ? `<div class="piada">🕵️ Caíram na malha fina (ainda não enviaram): <b>${t.pendentes_envio.map(esc).join(', ')}</b>. O ${esc(APP.supervisor)} está de olho 👀</div>` : ''}
       ${t.enviaram.map(e => `<div class="rel-col"><div><b>${esc(e.colaborador)}</b> <span class="nota">${e.turno ? esc(e.turno) + ' · ' : ''}enviado às ${hora(e.enviado_em)}</span></div>
         <ul>${e.itens.map(i => `<li><span class="tag ${i.status}">${(STATUS[i.status] || STATUS.programada).short}</span> <span class="mono" style="font-size:13px">${esc(i.os)}</span> ${esc(i.descricao)}${i.data_prevista && i.data_prevista < t.data ? ` <span class="nota">(prevista ${fmtData(i.data_prevista)})</span>` : ''}
           ${i.status === 'pendente' ? `<div class="just"><b>${esc(i.motivo || 'Sem motivo')}</b>${i.justificativa ? ' · ' + esc(i.justificativa) : ''}</div>` : ''}</li>`).join('')}

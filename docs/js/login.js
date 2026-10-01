@@ -6,12 +6,12 @@ const Login = (() => {
 
   // Se a pessoa já entrou antes neste aparelho, busca as tarefas enquanto ela lê a tela.
   function prefetch() {
-    const mat = ls.get('pcm_matricula'), turno = ls.get('pcm_turno');
-    if (mat && !PRE) PRE = { mat, turno: turno || TURNOS[0], p: rpc('publico.entrar', { matricula: mat, turno: turno || TURNOS[0] }).catch(() => null) };
+    const mat = ls.get('pcm_matricula'), turno = ls.get('pcm_turno') || '';
+    if (mat && !PRE) PRE = { mat, turno: turno || '', p: rpc('publico.entrar', { matricula: mat, turno: turno || '' }).catch(() => null) };
   }
 
   function html() {
-    const mat = ls.get('pcm_matricula') || '', turno = ls.get('pcm_turno') || TURNOS[0], email = ls.get('pcm_email') || '';
+    const mat = ls.get('pcm_matricula') || '', turno = ls.get('pcm_turno') || '', email = ls.get('pcm_email') || '';
     return `
     <div class="split">
       <section class="hero">
@@ -33,7 +33,7 @@ const Login = (() => {
         ${perfil === 'campo' ? `
         <form class="form reveal" id="f-campo" novalidate>
           <label class="fld">Matrícula<input class="inp" id="l-mat" inputmode="numeric" autocomplete="off" placeholder="Ex.: 102345" value="${esc(mat)}"></label>
-          <label class="fld">Turno<select class="inp" id="l-turno">${TURNOS.map(t => `<option ${t === turno ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+          <label class="fld">Turno<select class="inp" id="l-turno"><option value="" ${turno === '' ? 'selected' : ''}>Automático (pelo meu cadastro)</option>${TURNOS.map(t => `<option ${t === turno ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
           <div class="erro" id="l-erro" role="alert" hidden></div>
           <button class="btn pri lg" id="l-ok">Entrar no apontamento ${icone('seta')}</button>
           <p class="nota">Acesso simplificado: sem senha. O relatório fica vinculado à sua matrícula e ao turno.</p>

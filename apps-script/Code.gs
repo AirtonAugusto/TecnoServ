@@ -18,6 +18,7 @@ var CLASSIF_ = ['BPF', 'Corretiva'];
 var TURNOS_ = ['Turno A', 'Turno B', 'Turno C', 'Administrativo'];
 var PRIORIDADES_ = ['Alta', 'Média', 'Baixa'];
 var REGIMES_ = ['Turno', 'ADM'];
+var LETRAS_ = ['A', 'B', 'C'];
 var MOTIVOS_ = {
   material: 'Falta de material / sobressalente',
   liberacao: 'Equipamento sem liberação da operação',
@@ -29,7 +30,7 @@ var MOTIVOS_ = {
 // Tipos: s=texto, b=booleano, j=JSON. Colunas novas entram no fim; abas antigas são atualizadas sozinhas.
 var SCHEMAS_ = {
   equipes: { id: 's', nome: 's' },
-  colaboradores: { id: 's', nome: 's', equipe_id: 's', ativo: 'b', matricula: 's', regime: 's' },
+  colaboradores: { id: 's', nome: 's', equipe_id: 's', ativo: 'b', matricula: 's', regime: 's', letra: 's' },
   atividades: {
     id: 's', os: 's', descricao: 's', data: 's', colaborador_id: 's', criado_em: 's',
     prioridade: 's', equipamento: 's', area: 's', origem: 's',
@@ -99,6 +100,9 @@ function mapaApi_() {
     'gestao.equipe.excluir': gEquipeExcluir_,
     'gestao.colaborador.salvar': gColabSalvar_,
     'gestao.colaborador.inativar': gColabInativar_,
+    'gestao.colaborador.excluir': gColabExcluir_,
+    'gestao.folga.salvar': gFolgaSalvar_,
+    'gestao.folga.excluir': gFolgaExcluir_,
     'gestao.calendario': gCalendario_,
     'gestao.atividade.salvar': gAtividadeSalvar_,
     'gestao.atividade.excluir': gAtividadeExcluir_,
@@ -109,7 +113,7 @@ function mapaApi_() {
 }
 var ESCRITA_ = {
   'publico.enviar': 1, 'gestao.equipe.salvar': 1, 'gestao.equipe.excluir': 1, 'gestao.colaborador.salvar': 1,
-  'gestao.colaborador.inativar': 1, 'gestao.atividade.salvar': 1, 'gestao.atividade.excluir': 1, 'gestao.atividade.duplicar': 1,
+  'gestao.colaborador.inativar': 1, 'gestao.colaborador.excluir': 1, 'gestao.folga.salvar': 1, 'gestao.folga.excluir': 1, 'gestao.atividade.salvar': 1, 'gestao.atividade.excluir': 1, 'gestao.atividade.duplicar': 1,
 };
 
 /** Único ponto de entrada das chamadas do site. */
@@ -369,17 +373,20 @@ function ultimosApont_() { // atividade_id -> apontamento mais recente
 function colabAtivo_(id) { var c = achar_('colaboradores', id); return c && c.ativo ? c : null; }
 function normMat_(m) { return String(m == null ? '' : m).trim().replace(/^0+/, ''); }
 
+function turnoDe_(c) { return c.regime === 'ADM' ? 'Administrativo' : (c.letra ? 'Turno ' + c.letra : ''); }
+function ehFolga_(a) { return a.origem === 'Folga'; }
+
 function perfil_(c, turno) {
   var eq = achar_('equipes', c.equipe_id);
-  return { id: c.id, nome: c.nome, equipe: eq ? eq.nome : '', regime: c.regime || 'Turno', turno: turno || '' };
+  return { id: c.id, nome: c.nome, equipe: eq ? eq.nome : '', regime: c.regime || 'Turno', letra: c.letra || '', turno: turno || turnoDe_(c) };
 }
 
 /** Entrada do colaborador: matrícula + turno. Devolve o perfil e as tarefas numa única chamada. */
 function publicoEntrar_(a) {
   var mat = normMat_(a.matricula); exigir_(mat, 'Informe a matrícula.');
-  var turno = TURNOS_.indexOf(a.turno) >= 0 ? a.turno : TURNOS_[0];
   var c = todos_('colaboradores').filter(function (x) { return x.ativo && normMat_(x.matricula) === mat; })[0];
   exigir_(c, 'Matrícula não encontrada. Confira o número ou fale com o PCM.');
+  var turno = TURNOS_.indexOf(a.turno) >= 0 ? a.turno : (turnoDe_(c) || TURNOS_[0]); // vazio = pelo cadastro
   var t = publicoTarefas_({ id: c.id, data: a.data });
   t.perfil.turno = turno;
   return { perfil: t.perfil, tarefas: t };
@@ -403,7 +410,7 @@ function publicoTarefas_(a) {
     };
   };
 
-  var minhas = todos_('atividades').filter(function (x) { return x.colaborador_id === c.id && x.data; });
+  var minhas = todos_('atividades').filter(function (x) { return x.colaborador_id === c.id && x.data && !ehFolga_(x); });
   var doDia = minhas.filter(function (x) { return x.data === data; }).map(fmt);
   var anteriores = minhas.filter(function (x) { return x.data < data && x.data >= somarDias_(data, -14); }).filter(function (x) {
     if (porAtiv[x.id]) return true;
@@ -510,7 +517,10 @@ function gColabSalvar_(a) {
   exigir_(!todos_('colaboradores').some(function (c) { return c.id !== a.id && normMat_(c.matricula) === normMat_(mat); }), 'Já existe um colaborador com esta matrícula.');
   var equipeId = a.equipe_id || '';
   exigir_(!equipeId || achar_('equipes', equipeId), 'Equipe inválida.');
-  var dados = { nome: nome, equipe_id: equipeId, ativo: a.ativo !== false, matricula: mat, regime: REGIMES_.indexOf(a.regime) >= 0 ? a.regime : 'Turno' };
+  var regime = REGIMES_.indexOf(a.regime) >= 0 ? a.regime : 'Turno';
+  var letra = regime === 'ADM' ? '' : String(a.letra || '').toUpperCase();
+  exigir_(regime === 'ADM' || LETRAS_.indexOf(letra) >= 0, 'Escolha a letra do turno (A, B ou C).');
+  var dados = { nome: nome, equipe_id: equipeId, ativo: a.ativo !== false, matricula: mat, regime: regime, letra: letra };
   if (a.id) { var r = atualizar_('colaboradores', a.id, dados); exigir_(r, 'Colaborador não encontrado.'); return limpar_(r); }
   return limpar_(inserir_('colaboradores', dados));
 }
@@ -518,6 +528,18 @@ function gColabInativar_(a) {
   exigir_(atualizar_('colaboradores', a.id, { ativo: false }), 'Colaborador não encontrado.');
   return { ok: true };
 }
+/** Exclui de vez. OS futuras vão para o backlog; o histórico de apontamentos é mantido. */
+function gColabExcluir_(a) {
+  var c = achar_('colaboradores', a.id); exigir_(c, 'Colaborador não encontrado.');
+  var hoje = hoje_();
+  todos_('atividades').filter(function (x) { return x.colaborador_id === c.id; }).forEach(function (x) {
+    if (ehFolga_(x)) removerOnde_('atividades', function (y) { return y.id === x.id; });
+    else if (x.data >= hoje || !x.data) atualizar_('atividades', x.id, { colaborador_id: '', data: '' });
+  });
+  removerOnde_('colaboradores', function (x) { return x.id === c.id; });
+  return { ok: true };
+}
+
 function gCadastros_() {
   return { equipes: todos_('equipes').map(limpar_), colaboradores: todos_('colaboradores').map(limpar_) };
 }
@@ -539,7 +561,28 @@ function gPainel_(a) {
 function emFolga_(colab, data) {
   if (!colab || !data) return false;
   var d = diaSemana_(data);
-  return colab.regime === 'ADM' && (d === 0 || d === 6);
+  if (colab.regime === 'ADM' && (d === 0 || d === 6)) return true; // ADM folga sábado e domingo
+  return todos_('atividades').some(function (a) { return ehFolga_(a) && a.colaborador_id === colab.id && a.data === data; });
+}
+
+/** Marca (ou move) uma folga na programação. */
+function gFolgaSalvar_(a) {
+  var colab = colabAtivo_(a.colaborador_id); exigir_(colab, 'Colaborador inválido.');
+  exigir_(ehData_(a.data), 'Data inválida.');
+  exigir_(!(colab.regime === 'ADM' && (diaSemana_(a.data) === 0 || diaSemana_(a.data) === 6)), colab.nome + ' já tem folga neste dia (ADM).');
+  var todas = todos_('atividades');
+  exigir_(!todas.some(function (x) { return !ehFolga_(x) && x.colaborador_id === colab.id && x.data === a.data; }), 'Já há OS programada para ' + colab.nome + ' neste dia. Mova a OS antes de marcar a folga.');
+  exigir_(!todas.some(function (x) { return ehFolga_(x) && x.colaborador_id === colab.id && x.data === a.data && x.id !== a.id; }), colab.nome + ' já está de folga neste dia.');
+  if (a.id) {
+    var atual = achar_('atividades', a.id); exigir_(atual && ehFolga_(atual), 'Folga não encontrada.');
+    return limpar_(atualizar_('atividades', a.id, { colaborador_id: colab.id, data: a.data }));
+  }
+  return limpar_(inserir_('atividades', { os: '', descricao: 'Folga', data: a.data, colaborador_id: colab.id, origem: 'Folga', criado_em: new Date().toISOString() }));
+}
+function gFolgaExcluir_(a) {
+  var f = achar_('atividades', a.id); exigir_(f && ehFolga_(f), 'Folga não encontrada.');
+  removerOnde_('atividades', function (x) { return x.id === a.id; });
+  return { ok: true };
 }
 
 function gCalendario_() {
@@ -556,8 +599,9 @@ function gCalendario_() {
   var todas = todos_('atividades');
   return {
     hoje: hoje, semanas: semanas,
-    atividades: todas.filter(function (x) { return x.data && x.data >= ini && x.data <= fim; }).map(fmt),
-    backlog: todas.filter(function (x) { return !x.data; }).map(fmt),
+    atividades: todas.filter(function (x) { return x.data && x.data >= ini && x.data <= fim && !ehFolga_(x); }).map(fmt),
+    folgas: todas.filter(function (x) { return ehFolga_(x) && x.data >= ini && x.data <= fim; }).map(limpar_),
+    backlog: todas.filter(function (x) { return !x.data && !ehFolga_(x); }).map(fmt),
     extras: todos_('apontamentos').filter(function (x) { return x.status === 'extra' && x.data >= ini && x.data <= fim; }).map(function (x) {
       return { id: x.id, data: x.data, colaborador_id: x.colaborador_id, descricao: x.descricao_extra, equipamento: x.equip_extra, classificacao: x.classificacao };
     }),
@@ -582,7 +626,7 @@ function validarAtividade_(b) {
 }
 function gAtividadeSalvar_(a) {
   if (a.id) {
-    var atual = achar_('atividades', a.id); exigir_(atual, 'Atividade não encontrada.');
+    var atual = achar_('atividades', a.id); exigir_(atual && !ehFolga_(atual), 'Atividade não encontrada.');
     var merged = {}; Object.keys(atual).forEach(function (k) { merged[k] = atual[k]; });
     Object.keys(a).forEach(function (k) { if (k !== 'token' && k !== 'id') merged[k] = a[k]; });
     return limpar_(atualizar_('atividades', a.id, validarAtividade_(merged)));
@@ -708,7 +752,7 @@ function calcularAderencia_(db, p) {
   };
 
   db.atividades.forEach(function (a) {
-    if (!a.data || a.data < de || a.data > ate || a.data > hoje || !a.colaborador_id || !passa(a.colaborador_id)) return;
+    if (ehFolga_(a) || !a.data || a.data < de || a.data > ate || a.data > hoje || !a.colaborador_id || !passa(a.colaborador_id)) return;
     var u = ultimo[a.id];
     somar(a.colaborador_id, function (x) {
       x.programadas++;
@@ -744,6 +788,7 @@ function calcularAderencia_(db, p) {
     colaboradores: elegiveis.map(function (c) {
       var o = fechar_(porColab[c.id] || novoAcc_());
       o.id = c.id; o.nome = c.nome; o.equipe_id = c.equipe_id; o.motivos = motivosColab[c.id] || {};
+      o.regime = c.regime || 'Turno'; o.letra = c.letra || '';
       o.equipe = c.equipe_id && equipes[c.equipe_id] ? equipes[c.equipe_id].nome : '-'; return o;
     }).sort(porNome),
     motivos: Object.keys(MOTIVOS_).map(function (k) { return { codigo: k, rotulo: MOTIVOS_[k], total: motivos[k] }; }),
