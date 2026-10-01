@@ -1,4 +1,4 @@
-# TecnoServ PCM — Apontamento, Aderência e Programação
+# Informe de Turno — versão Node.js (alternativa)
 
 Aplicação web (Node.js + Express, front-end em HTML/JS puro) que substitui os relatórios de fim de turno por WhatsApp.
 

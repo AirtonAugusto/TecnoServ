@@ -1,5 +1,5 @@
 /**
- * Sistema PCM — Apontamento de turno, aderência e programação semanal.
+ * Informe de Turno — apontamento do turno, aderência e programação semanal.
  * Google Apps Script (Web App). Dados: Google Sheets (planilha que contém este script).
 
  * Arquivos do projeto: Principal.gs, Dados.gs, Operacional.gs, Adm.gs, Indicadores.gs e (HTML) Pagina, Estilos,
@@ -31,7 +31,7 @@ var SCHEMAS_ = {
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Pagina')
-    .setTitle('Sistema PCM — AngloGold Ashanti')
+    .setTitle('Informe de Turno — AngloGold Ashanti')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -51,6 +51,12 @@ function doPost(e) {
   return ContentService.createTextOutput(JSON.stringify(saida)).setMimeType(ContentService.MimeType.JSON);
 }
 
+/**
+ * Opcional: crie um acionador por tempo (Acionadores > Adicionar > manterAtivo > a cada 5 minutos)
+ * para manter o sistema "acordado" e reduzir a demora do primeiro acesso.
+ */
+function manterAtivo() { todos_('equipes'); }
+
 /** Execute uma vez no editor (Executar > preparar) para criar as abas e autorizar o script. */
 function preparar() {
   Object.keys(SCHEMAS_).forEach(function (t) { folha_(t); });
@@ -64,12 +70,16 @@ function preparar() {
 
 function mapaApi_() {
   return {
+  'ping': function () { return { ok: true }; },
   'publico.colaboradores': publicoColaboradores_,
+  'publico.inicio': publicoInicio_,
   'publico.tarefas': publicoTarefas_,
   'publico.enviar': publicoEnviar_,
   'auth.login': authLogin_,
   'auth.status': function (a) { return { autenticado: tokenValido_(a.token) }; },
   'gestao.equipes': function () { return todos_('equipes'); },
+  'gestao.painel': gPainel_,
+  'gestao.cadastros': gCadastros_,
   'gestao.equipe.salvar': gEquipeSalvar_,
   'gestao.equipe.excluir': gEquipeExcluir_,
   'gestao.colaboradores': function () { return todos_('colaboradores'); },
@@ -327,6 +337,15 @@ function publicoColaboradores_() {
     .sort(function (a, b) { return a.nome.localeCompare(b.nome); });
 }
 
+/** Uma única chamada para abrir a tela OPERACIONAL: lista de nomes + tarefas do colaborador lembrado. */
+function publicoInicio_(a) {
+  var r = { colaboradores: publicoColaboradores_(), tarefas: null };
+  if (a.id && colabAtivo_(a.id)) {
+    try { r.tarefas = publicoTarefas_({ id: a.id, data: a.data }); } catch (e) { r.tarefas = null; }
+  }
+  return r;
+}
+
 function publicoTarefas_(a) {
   var c = colabAtivo_(a.id); exigir_(c, 'Colaborador não encontrado.');
   var hoje = hoje_(), data = a.data || hoje;
@@ -437,6 +456,18 @@ function gColabSalvar_(a) {
 function gColabInativar_(a) {
   exigir_(atualizar_('colaboradores', a.id, { ativo: false }), 'Colaborador não encontrado.');
   return { ok: true };
+}
+
+/** Uma única chamada para abrir o painel da ADM: equipes + indicadores + relatório do dia. */
+function gPainel_(a) {
+  return {
+    equipes: todos_('equipes').map(limpar_),
+    aderencia: gAderencia_(a),
+    relatorios: gRelatorios_({ data: a.rdata, equipe_id: a.equipe_id }),
+  };
+}
+function gCadastros_() {
+  return { equipes: todos_('equipes').map(limpar_), colaboradores: todos_('colaboradores').map(limpar_) };
 }
 
 function gCalendario_(a) {
