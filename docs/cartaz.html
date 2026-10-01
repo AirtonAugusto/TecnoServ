@@ -4,12 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>QR code — Informe de Turno</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap">
 <style>
-  :root { --gold: #c4902e; --pri: #0a0a0a; }
+  :root { --gold: #3B82F6; --pri: #14181F; }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #f6f5f2; color: #1b1b1b; }
+  body { margin: 0; font: 16px/1.45 'IBM Plex Sans', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #F8F9FA; color: #14181F; }
   .folha { max-width: 820px; margin: 0 auto; background: #fff; min-height: 100vh; display: flex; flex-direction: column; }
-  .topo { background: radial-gradient(ellipse at 50% 0%, #2a2112 0%, #0a0a0a 65%); color: #fff; text-align: center; padding: 28px 16px 36px; border-bottom: 4px solid var(--gold); }
+  .topo { background: #14181F; color: #fff; text-align: center; padding: 28px 16px 36px; border-bottom: 4px solid var(--gold); }
   .topo img { width: 220px; max-width: 60%; }
   .topo h1 { margin: 10px 0 0; font-weight: 300; letter-spacing: 4px; text-transform: uppercase; font-size: 1.9rem; }
   .corpo { flex: 1; text-align: center; padding: 28px 20px; }
@@ -19,8 +20,8 @@
   .passos { text-align: left; max-width: 520px; margin: 24px auto 0; color: #444; }
   .passos li { margin: 6px 0; }
   .acoes { padding: 14px; text-align: center; }
-  .assinatura { text-align: center; font-size: .8rem; color: #6a665e; padding: 14px 12px 20px; border-top: 3px solid var(--gold); }
-  .assinatura b { color: #8a6114; }
+  .assinatura { text-align: center; font-size: .8rem; color: #5B6470; padding: 14px 12px 20px; border-top: 3px solid var(--gold); }
+  .assinatura b { color: #14181F; }
   button { font: inherit; padding: 10px 22px; border-radius: 8px; border: 1px solid var(--pri); background: var(--pri); color: #fff; cursor: pointer; font-weight: 600; }
   @media print { body { background: #fff; } .acoes { display: none; } .folha { min-height: auto; } }
 </style>

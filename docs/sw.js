@@ -1,7 +1,9 @@
-// Service worker: guarda a página no aparelho para abrir rápido (e atualiza em segundo plano).
+// Service worker: guarda a página no aparelho para abrir rápido e funcionar com internet fraca.
+// Estratégia "rede primeiro": sempre tenta a versão nova e só usa o guardado se a rede falhar.
 // As chamadas ao servidor (POST para o Google) nunca passam pelo cache.
-const VERSAO = 'informe-v2';
-const BASE = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png'];
+const VERSAO = 'informe-v3';
+const BASE = ['./', 'index.html', 'css/app.css', 'manifest.json', 'logo.png', 'icon-192.png', 'icon-512.png',
+  'js/core.js', 'js/login.js', 'js/operacional.js', 'js/adm.js', 'js/dashboard.js', 'js/programacao.js', 'js/relatorios.js', 'js/cadastros.js', 'js/main.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSAO).then(c => c.addAll(BASE)).then(() => self.skipWaiting()));
@@ -11,13 +13,9 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   const req = e.request, url = new URL(req.url);
-  if (req.method !== 'GET') return;
-  const mesmaOrigem = url.origin === self.location.origin;
-  if (!mesmaOrigem && url.hostname !== 'cdnjs.cloudflare.com') return;
-  // Responde do cache na hora e atualiza em segundo plano (stale-while-revalidate)
-  e.respondWith(caches.open(VERSAO).then(async c => {
-    const guardado = await c.match(req, { ignoreSearch: true });
-    const rede = fetch(req).then(r => { if (r && r.ok) c.put(req, r.clone()); return r; }).catch(() => guardado);
-    return guardado || rede;
-  }));
+  if (req.method !== 'GET' || url.origin !== self.location.origin) return;
+  e.respondWith(fetch(req).then(r => {
+    if (r && r.ok) { const copia = r.clone(); caches.open(VERSAO).then(c => c.put(req, copia)); }
+    return r;
+  }).catch(() => caches.match(req, { ignoreSearch: true })));
 });
