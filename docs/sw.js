@@ -1,6 +1,6 @@
 // Service worker: guarda a página no aparelho para abrir rápido (e atualiza em segundo plano).
 // As chamadas ao servidor (POST para o Google) nunca passam pelo cache.
-const VERSAO = 'informe-v1';
+const VERSAO = 'informe-v2';
 const BASE = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
