@@ -10,33 +10,13 @@ Roda inteiramente na sua conta Google:
 
 Telas: início (OPERACIONAL ou ADM) · OPERACIONAL (apontamento do turno) · ADM com senha (aderência + relatório por equipe, programação de 3 semanas, cadastros).
 
-## Arquivos (14 arquivos pequenos, para colar um de cada vez)
+## Arquivos
 
-**Script (.gs)** — os nomes são livres:
-
-| Arquivo | O que é |
-|---|---|
-| `Principal.gs` | Entrada do app, roteador das chamadas e datas |
-| `Dados.gs` | Leitura/gravação na planilha e senha da ADM |
-| `Operacional.gs` | Tela do colaborador (tarefas, envio do turno, fotos) |
-| `Adm.gs` | Cadastros, calendário, relatórios |
-| `Indicadores.gs` | Cálculo da aderência |
-
-**HTML** — os nomes **precisam ser exatamente estes** (sem ".html" no editor):
-
-| Arquivo | O que é |
-|---|---|
-| `Pagina` | Estrutura da página (liga todas as partes abaixo) |
-| `Estilos` | Cores e layout |
-| `JsLogo` | Logo embutido |
-| `JsNucleo` | Funções básicas |
-| `JsOperacional` | Tela OPERACIONAL |
-| `JsAderencia` | Dashboard |
-| `JsProgramacao` | Calendário |
-| `JsCadastros` | Cadastros |
-| `JsTelas` | Tela inicial, login e navegação |
-
-**Configuração:** `appsscript.json`.
+| Arquivo | Tamanho | O que é |
+|---|---|---|
+| `Code.gs` | ~28 KB | Servidor: regras, indicadores, planilha, fotos no Drive e senha da ADM |
+| `Pagina.html` | ~64 KB | Todas as telas (HTML + CSS + JavaScript, com o logo embutido) |
+| `appsscript.json` | 1 KB | Configuração do projeto (fuso, permissões, tipo de acesso) |
 
 ## Passo a passo
 
@@ -44,17 +24,17 @@ Telas: início (OPERACIONAL ou ADM) · OPERACIONAL (apontamento do turno) · ADM
 1. Acesse https://sheets.google.com e crie uma **planilha em branco** (nome sugerido: *PCM - Dados*).
 2. No menu da planilha: **Extensões → Apps Script**. Abre o editor de código já vinculado a essa planilha.
 
-### 2. Colar os arquivos (um por vez)
+### 2. Colar os arquivos
 No GitHub, abra cada arquivo da pasta `apps-script`, clique em **Raw**, `Ctrl + A`, `Ctrl + C`, e cole no editor.
 
-1. **Scripts:** use o `Código.gs` que já existe para o conteúdo de `Principal.gs` (apague tudo antes de colar). Para os outros quatro, clique em **＋ → Script**, digite o nome (`Dados`, `Operacional`, `Adm`, `Indicadores`) e cole o conteúdo.
-2. **HTML:** para cada um dos nove, clique em **＋ → HTML**, digite o nome exato da tabela acima (`Pagina`, `Estilos`, `JsLogo`…) e cole o conteúdo. O editor cria um arquivo com algumas linhas de exemplo: apague tudo antes de colar.
+1. **`Code.gs`:** abra o `Código.gs` que já existe, `Ctrl + A`, apague e cole o conteúdo de `Code.gs`.
+2. **`Pagina.html`:** clique em **＋ → HTML**, digite o nome **`Pagina`** (sem ".html", sem acento, P maiúsculo), apague o exemplo que o editor cria e cole o conteúdo de `Pagina.html`.
 3. **Manifesto:** em **⚙️ Configurações do projeto**, marque **"Mostrar arquivo de manifesto appsscript.json no editor"**; volte, abra `appsscript.json` e substitua pelo conteúdo do arquivo.
-4. Clique em 💾 **Salvar** (`Ctrl + S` em cada arquivo).
+4. Clique em 💾 **Salvar**.
 
-Dica de conferência: a primeira linha de cada `.gs` deve começar com `/**`, e a de cada HTML com `<style>`, `<script>` ou `<!DOCTYPE html>`.
+Dica de conferência: o `Code.gs` colado tem 578 linhas e começa com `/**`; o `Pagina.html` começa com `<!DOCTYPE html>`.
 
-> Alternativa sem copiar e colar: `npm i -g @google/clasp`, `clasp login`, `clasp clone <ID do script>` dentro da pasta `apps-script` e `clasp push`. O ID do script fica em **Configurações do projeto**.
+> Se o editor não aceitar a colagem do `Pagina.html` (é o maior), use o **clasp**, que envia os arquivos sem copiar e colar: `npm i -g @google/clasp`, `clasp login`, `clasp clone <ID do script>` dentro da pasta `apps-script` e `clasp push`. O ID do script fica em **Configurações do projeto**.
 
 ### 3. Definir a senha da ADM
 1. **⚙️ Configurações do projeto → Propriedades do script → Adicionar propriedade**.

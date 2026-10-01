@@ -46,10 +46,7 @@ await ctx.addInitScript(() => {
 const p = await ctx.newPage();
 await p.exposeFunction('__rpc', (m, a) => env.rpc(m, a));
 p.on('pageerror', e => errs.push('PAGEERR ' + e.message)); p.on('console', m => m.type() === 'error' && errs.push('CONSOLE ' + m.text()));
-// Monta Pagina.html como o servidor faz (<?!= incluir('X') ?>)
-const montada = fs.readFileSync(path.join(dir, '../Pagina.html'), 'utf8').replace(/<\?!= incluir\('(\w+)'\) \?>/g, (_, n) => fs.readFileSync(path.join(dir, '..', n + '.html'), 'utf8'));
-const tmp = path.join(dir, '_pagina_montada.html'); fs.writeFileSync(tmp, montada);
-await p.goto('file://' + tmp);
+await p.goto('file://' + path.join(dir, '../Pagina.html'));
 await p.waitForTimeout(300); console.log('erros iniciais:', errs); await p.screenshot({ path: out + 'gas_ini.png' });
 
 // --- Operacional ---

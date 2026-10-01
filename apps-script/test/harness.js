@@ -53,8 +53,7 @@ function criarAmbiente({ props = {} } = {}) {
     HtmlService: { createHtmlOutputFromFile: n => ({ setTitle() { return this; }, addMetaTag() { return this; }, setXFrameOptionsMode() { return this; }, arquivo: n }), XFrameOptionsMode: { ALLOWALL: 1 } },
   };
   vm.createContext(ctx);
-  // Como no Apps Script: todos os .gs rodam no mesmo escopo global, na ordem do projeto.
-  ['Principal', 'Dados', 'Operacional', 'Adm', 'Indicadores'].forEach(n => vm.runInContext(fs.readFileSync(path.join(__dirname, '..', n + '.gs'), 'utf8'), ctx, { filename: n + '.gs' }));
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'Code.gs'), 'utf8'), ctx, { filename: 'Code.gs' });
   return { ctx, planilhas, arquivos, propriedades, rpc: (m, a) => JSON.parse(JSON.stringify(ctx.rpc(m, a))) };
 }
 module.exports = { criarAmbiente };
