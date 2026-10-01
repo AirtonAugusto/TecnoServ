@@ -12,6 +12,8 @@ const APP = {
   lema: 'Gestão de OS, aderência e programação',
   descricao: 'Apontamento do turno em campo, aderência por equipe e programação das próximas 3 semanas no mesmo lugar.',
 };
+const AUTOR = 'Airton C. M. Augusto';
+const assinatura = (cls = '') => `<div class="assinatura ${cls}">Desenvolvido por <b>${esc(AUTOR)}</b></div>`;
 const TURNOS = ['Turno A', 'Turno B', 'Turno C', 'Administrativo'];
 const PRIORIDADES = ['Alta', 'Média', 'Baixa'];
 const MOTIVOS = {

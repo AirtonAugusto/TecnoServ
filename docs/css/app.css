@@ -286,3 +286,11 @@ table.tab th { text-align: left; font-size: 12px; text-transform: uppercase; let
 table.tab td { padding: 10px; border-bottom: 1px solid var(--line-2); vertical-align: middle; }
 .linha-f { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; } .linha-f > * { flex: 1 1 160px; } .linha-f > .fx { flex: 0 0 auto; }
 @media print { .side, .no-print, .cab-pag .sync, .filtros { display: none !important; } .conteudo { padding: 0; } body { background: #fff; } }
+
+/* ---------- assinatura ---------- */
+.assinatura { font-size: 12px; letter-spacing: .2px; color: var(--mut); text-align: center; }
+.assinatura b { font-weight: 600; color: var(--ink-2); }
+.assinatura.hero-ass { text-align: left; color: var(--side-mut); font-size: 13px; } .assinatura.hero-ass b { color: #E6E8EC; }
+.assinatura.lateral { color: #8A94A1; padding: 0 4px; } .assinatura.lateral b { color: #C9CED6; }
+.assinatura.clara { padding: 28px 0 0; }
+@media print { .assinatura.lateral { display: none; } }

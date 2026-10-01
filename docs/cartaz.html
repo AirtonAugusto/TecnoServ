@@ -20,6 +20,8 @@
   .passos { text-align: left; max-width: 520px; margin: 24px auto 0; color: #444; }
   .passos li { margin: 6px 0; }
   .acoes { padding: 14px; text-align: center; }
+  .assinatura { text-align: center; font-size: .8rem; color: #5B6470; padding: 14px 12px 20px; border-top: 3px solid var(--gold); }
+  .assinatura b { color: #14181F; }
   button { font: inherit; padding: 10px 22px; border-radius: 8px; border: 1px solid var(--pri); background: var(--pri); color: #fff; cursor: pointer; font-weight: 600; }
   @media print { body { background: #fff; } .acoes { display: none; } .folha { min-height: auto; } }
 </style>
@@ -38,6 +40,7 @@
     </ol>
   </div>
   <div class="acoes"><button onclick="window.print()">Imprimir esta página</button></div>
+  <footer class="assinatura">Desenvolvido por <b>Airton C. M. Augusto</b></footer>
 </div>
 <script src="vendor/qrcode.js"></script>
 <script>

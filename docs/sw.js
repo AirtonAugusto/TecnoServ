@@ -1,7 +1,7 @@
 // Service worker: guarda a página no aparelho para abrir rápido e funcionar com internet fraca.
 // Estratégia "rede primeiro": sempre tenta a versão nova e só usa o guardado se a rede falhar.
 // As chamadas ao servidor (POST para o Google) nunca passam pelo cache.
-const VERSAO = 'informe-v2';
+const VERSAO = 'informe-v3';
 const BASE = ['./', 'index.html', 'css/app.css', 'manifest.json', 'logo.png', 'icon-192.png', 'icon-512.png',
   'js/core.js', 'js/login.js', 'js/operacional.js', 'js/adm.js', 'js/dashboard.js', 'js/programacao.js', 'js/relatorios.js', 'js/cadastros.js', 'js/main.js'];
 

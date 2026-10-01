@@ -36,6 +36,7 @@ function cabecalhoGestao(ativa) {
   const h = document.createElement('header'); h.className = 'top';
   h.innerHTML = `<a class="marca" href="/"><img src="img/logo-anglo.png" alt="AngloGold Ashanti"></a><h1>ADM · Informe de Turno</h1><nav>${links.map(([u, n]) => `<a href="${u}" class="${u === ativa ? 'on' : ''}">${n}</a>`).join('')}<a href="/">Início</a></nav><button id="sair" class="peq">Sair</button>`;
   document.body.prepend(h);
+  const f = document.createElement('footer'); f.className = 'assinatura'; f.innerHTML = 'Desenvolvido por <b>Airton C. M. Augusto</b>'; document.body.append(f);
   $('#sair').onclick = async () => { await api('POST', '/api/auth/logout'); location.reload(); };
 }
 function pedirLogin() {

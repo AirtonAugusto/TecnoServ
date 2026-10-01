@@ -22,6 +22,7 @@ const Login = (() => {
           <div style="border-color:#EAB308"><b>Aderência</b><span>Planejado vs. executado</span></div>
           <div style="border-color:#3B82F6"><b>Programação</b><span>Semanas W, W+1 e W+2</span></div>
         </div>
+        ${assinatura('hero-ass')}
       </section>
       <section class="acesso"><div class="in">
         <div><h2>Entrar</h2><p style="font-size:15px;color:#5B6470;margin-top:6px">Escolha seu perfil de acesso.</p></div>

@@ -118,7 +118,7 @@ const Op = (() => {
             <button type="button" class="enviar ${E.sent ? 'ok' : ''}" id="op-enviar">${icone('enviar')}${E.sent ? 'Relatório enviado às ' + E.sentAt : (E.jaEnviado ? 'Reenviar relatório do turno' : 'Enviar relatório do turno')}</button>
           </div>
         </aside>
-      </div></main>
+      </div>${assinatura('clara')}</main>
       <div class="toast-top" aria-live="polite">${E.toast ? `<div class="t toast-ok"><span class="ic">${icone('ok')}</span><div><b>Relatório de turno enviado com sucesso</b><small>${lista.length} atividades · ${nFotos === 1 ? '1 foto anexada' : nFotos + ' fotos anexadas'}</small></div></div>` : ''}</div>
     </div>`;
     ligar();
