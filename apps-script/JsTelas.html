@@ -1,0 +1,130 @@
+<script>
+'use strict';
+const HTML_INICIO = `
+  <section class="inicio">
+    <div class="hero">
+      <img src="${LOGO}" alt="AngloGold Ashanti">
+      <h1>Sistema PCM</h1>
+      <p>Planejamento e Controle de Manutenção</p>
+    </div>
+    <nav class="escolhas" aria-label="Selecione o perfil">
+      <a class="escolha" href="#" data-ir="operacional">
+        <div class="ico"><svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="#c4902e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5 5L3.5 17.5a1.8 1.8 0 0 0 2.5 2.5l6.2-6.2a4 4 0 0 0 5-5l-2.6 2.6-2.4-.6-.6-2.4z"/></svg></div>
+        <h2>OPERACIONAL</h2>
+        <p>Apontamento do turno: status das atividades, observações e fotos.</p>
+        <span class="go">Entrar</span>
+      </a>
+      <a class="escolha adm" href="#" data-ir="adm">
+        <div class="ico"><svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="#c4902e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/></svg></div>
+        <h2>ADM</h2>
+        <p>Aderência, relatórios por equipe, programação semanal e cadastros. Acesso com senha.</p>
+        <span class="go">Entrar</span>
+      </a>
+    </nav>
+    <footer>AngloGold Ashanti · PCM</footer>
+  </section>`;
+
+const marca = '<a class="marca" href="#" data-ir="inicio"><img src="' + LOGO + '" alt="AngloGold Ashanti"></a>';
+const HTML_OP = '<header class="top">' + marca + '<h1>Operacional · Apontamento de turno</h1><nav></nav><a href="#" data-ir="inicio">Início</a></header>' + `<main class="estreito">
+    <div class="card">
+      <label for="colab">Quem é você?</label>
+      <select id="colab"></select>
+      <label for="data">Data do turno</label>
+      <select id="data"></select>
+    </div>
+    <div id="conteudo"></div>
+  </main>`;
+const ADM_ABAS = [['aderencia', 'Aderência'], ['programacao', 'Programação'], ['cadastros', 'Cadastros']];
+const HTML_ADM = aba => '<header class="top">' + marca + '<h1>ADM · PCM</h1><nav>' +
+  ADM_ABAS.map(([k, n]) => '<a href="#" data-aba="' + k + '" class="' + (k === aba ? 'on' : '') + '">' + n + '</a>').join('') +
+  '<a href="#" data-ir="inicio">Início</a></nav><button id="sair" class="peq">Sair</button></header><main id="admMain"></main>';
+const SKEL = {
+  aderencia: `
+    <div class="card no-print"><div class="linha">
+      <div><label>De</label><input type="date" id="de"></div>
+      <div><label>Até</label><input type="date" id="ate"></div>
+      <div><label>Equipe</label><select id="equipe"><option value="">Todas</option></select></div>
+      <div class="fixo"><button class="pri" id="aplicar">Atualizar</button></div>
+      <div class="fixo"><button id="p7">7 dias</button> <button id="p30">30 dias</button></div>
+    </div></div>
+
+    <div class="kpis" id="kpis"></div>
+    <div class="grid2">
+      <div class="card"><h2>Aderência por equipe</h2><p class="sub">% das atividades planejadas no período, ordenado da maior para a menor aderência</p><div class="graf" id="wEquipe"><canvas id="gEquipe"></canvas></div></div>
+      <div class="card"><h2>Evolução diária da aderência</h2><p class="sub">% de atividades concluídas em relação às planejadas de cada dia</p><div class="graf" id="wDia" style="height:280px"><canvas id="gDia"></canvas></div></div>
+    </div>
+    <div class="card"><h2>Aderência por colaborador</h2><p class="sub">% das atividades planejadas no período · o número à direita é a aderência (concluídas)</p><div class="graf" id="wColab"><canvas id="gColab"></canvas></div></div>
+    <div class="card" style="overflow-x:auto"><h2>Detalhamento em tabela</h2><p class="sub">Os mesmos dados dos gráficos, com os números absolutos</p><table id="tab"></table></div>
+
+    <div class="card"><h2>Relatório de turno por equipe</h2>
+      <div class="linha no-print"><div><label>Data</label><input type="date" id="rdata"></div><div class="fixo"><button id="rbtn">Ver</button> <button id="rimp">Imprimir</button></div></div>
+      <div id="rel"></div>
+    </div>
+  `,
+  programacao: `
+    <div class="nav-sem">
+      <button id="ant">◀ Anterior</button><button id="hoje">Semana atual</button><button id="prox">Próxima ▶</button>
+      <select id="filtro" style="width:auto"><option value="">Todas as equipes</option></select>
+      <span class="mut">Arraste as atividades entre células para remanejar · clique para editar · “+” para adicionar.</span>
+    </div>
+    <div id="semanas"></div>
+  `,
+  cadastros: `
+    <div class="card"><h2>Equipes</h2>
+      <form id="fe" class="linha"><div><input id="eq-nome" placeholder="Nome da equipe (ex.: Mecânica - Turno A)" required></div><div class="fixo"><button class="pri">Adicionar</button></div></form>
+      <table id="te"></table></div>
+    <div class="card"><h2>Colaboradores</h2>
+      <form id="fc" class="linha"><div><input id="co-nome" placeholder="Nome do colaborador" required></div><div><select id="co-eq"></select></div><div class="fixo"><button class="pri">Adicionar</button></div></form>
+      <table id="tc"></table></div>
+  `,
+};
+
+const app = $('#app');
+let abaAtual = 'aderencia';
+
+function ir(v) {
+  Dash.unmount();
+  document.querySelectorAll('.overlay').forEach(o => o.remove());
+  window.scrollTo(0, 0);
+  if (v === 'inicio') { app.innerHTML = HTML_INICIO; }
+  else if (v === 'operacional') { app.innerHTML = HTML_OP; Op.mount(); }
+  else if (v === 'adm') { entrarAdm(); }
+}
+
+async function entrarAdm() {
+  app.innerHTML = HTML_ADM(abaAtual);
+  try {
+    const r = await rpc('auth.status');
+    if (!r.autenticado) { Tok.clear(); return pedirLogin(); }
+    montarAba(abaAtual);
+  } catch (e) { toast(e.message, true); }
+}
+
+function montarAba(aba) {
+  abaAtual = aba;
+  Dash.unmount();
+  document.querySelectorAll('[data-aba]').forEach(a => a.classList.toggle('on', a.dataset.aba === aba));
+  $('#admMain').innerHTML = SKEL[aba];
+  ({ aderencia: Dash, programacao: Cal, cadastros: Cad })[aba].mount();
+}
+
+function pedirLogin() {
+  if ($('#login-ov')) return;
+  const o = modal('<h2>Acesso restrito — ADM</h2><form id="lf"><label>Senha</label><input type="password" id="senha" autocomplete="current-password" autofocus><p class="mut" id="lerro" style="color:var(--vermelho)"></p><div class="acoes"><button type="button" id="lv">Voltar ao início</button><button class="pri">Entrar</button></div></form>');
+  o.id = 'login-ov';
+  $('#lv').onclick = () => ir('inicio');
+  $('#lf').onsubmit = async e => {
+    e.preventDefault();
+    try { const r = await rpc('auth.login', { senha: $('#senha').value }); Tok.set(r.token); o.remove(); montarAba(abaAtual); }
+    catch (err) { $('#lerro').textContent = err.message; }
+  };
+}
+
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-ir],[data-aba]');
+  if (a) { e.preventDefault(); a.dataset.ir ? ir(a.dataset.ir) : montarAba(a.dataset.aba); }
+  if (e.target.id === 'sair') { Tok.clear(); ir('inicio'); }
+});
+
+ir('inicio');
+</script>
