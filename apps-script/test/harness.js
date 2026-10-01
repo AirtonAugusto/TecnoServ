@@ -15,13 +15,15 @@ function criarAmbiente({ props = {} } = {}) {
     const m = planilhas[nome];
     const rng = (r, c, nr = 1, nc = 1) => ({
       setValues(v) { for (let i = 0; i < v.length; i++) { m[r - 1 + i] = m[r - 1 + i] || []; for (let j = 0; j < v[i].length; j++) m[r - 1 + i][c - 1 + j] = v[i][j]; } return this; },
+      getValues() { return Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => { const v = (m[r - 1 + i] || [])[c - 1 + j]; return v === undefined ? '' : v; })); },
       setFontWeight() { return this; }, setNumberFormat() { return this; },
     });
     return {
-      getDataRange: () => ({ getValues: () => { stats.leituras++; return m.map(l => l.slice()); } }),
+      getDataRange: () => ({ getValues: () => { stats.leituras++; const w = Math.max(0, ...m.map(l => l.length)); return m.map(l => Array.from({ length: w }, (_, j) => l[j] === undefined ? '' : l[j])); } }),
       getRange: (a, b, c, d) => typeof a === 'string' ? rng(1, 1) : rng(a, b, c, d),
       appendRow: v => { m.push(v.slice()); },
       getLastRow: () => m.length,
+      getLastColumn: () => Math.max(0, ...m.map(l => l.length)),
       deleteRow: n => { m.splice(n - 1, 1); },
       setFrozenRows() {},
     };

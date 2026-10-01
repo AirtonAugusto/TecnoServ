@@ -5,143 +5,188 @@ const { criarAmbiente } = require('./harness');
 
 const hoje = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
 const somar = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const dow = s => new Date(s + 'T00:00:00Z').getUTCDay();
+const EMAIL = 'airton@empresa.com';
 
-test('login, token e bloqueio', () => {
-  const env = criarAmbiente({ props: { GESTAO_SENHA: 'segredo' } });
-  assert.strictEqual(env.rpc('gestao.equipes', {}).auth, true);
-  assert.strictEqual(env.rpc('auth.login', { senha: 'x' }).ok, false);
-  const tok = env.rpc('auth.login', { senha: 'segredo' }).dados.token;
-  assert.strictEqual(env.rpc('auth.status', { token: tok }).dados.autenticado, true);
-  assert.strictEqual(env.rpc('auth.status', { token: tok + 'a' }).dados.autenticado, false);
-  assert.strictEqual(env.rpc('gestao.equipes', { token: tok }).ok, true);
-  for (let i = 0; i < 8; i++) env.rpc('auth.login', { senha: 'errada' });
-  assert.match(env.rpc('auth.login', { senha: 'segredo' }).erro, /Muitas tentativas/);
+function gestao(props = {}) {
+  const env = criarAmbiente({ props: { GESTAO_SENHA: 's', ...props } });
+  const login = env.rpc('auth.login', { email: EMAIL, senha: 's' });
+  const token = login.dados && login.dados.token;
+  const g = (m, a) => env.rpc('gestao.' + m, { ...a, token });
+  return { env, token, g, login };
+}
+
+test('login da gestão: e-mail + senha, lista de e-mails, bloqueio', () => {
+  const env = criarAmbiente({ props: { GESTAO_SENHA: 's' } });
+  assert.strictEqual(env.rpc('gestao.cadastros', {}).auth, true);
+  assert.match(env.rpc('auth.login', { email: 'nao-e-email', senha: 's' }).erro, /e-mail válido/);
+  assert.match(env.rpc('auth.login', { email: EMAIL, senha: 'errada' }).erro, /incorretos/);
+  const ok = env.rpc('auth.login', { email: EMAIL, senha: 's' });
+  assert.strictEqual(ok.dados.usuario.nome, 'Airton');
+  assert.strictEqual(env.rpc('auth.status', { token: ok.dados.token }).dados.autenticado, true);
+  assert.strictEqual(env.rpc('auth.status', { token: ok.dados.token + 'a' }).dados.autenticado, false);
+  assert.strictEqual(env.rpc('gestao.cadastros', { token: ok.dados.token }).ok, true);
+  for (let i = 0; i < 8; i++) env.rpc('auth.login', { email: EMAIL, senha: 'errada' });
+  assert.match(env.rpc('auth.login', { email: EMAIL, senha: 's' }).erro, /Muitas tentativas/);
+
+  const restrito = criarAmbiente({ props: { GESTAO_SENHA: 's', GESTAO_EMAILS: 'chefe@empresa.com, outro@empresa.com' } });
+  assert.strictEqual(restrito.rpc('auth.login', { email: EMAIL, senha: 's' }).ok, false);
+  assert.strictEqual(restrito.rpc('auth.login', { email: 'CHEFE@empresa.com', senha: 's' }).ok, true);
 });
 
 test('sem GESTAO_SENHA o login avisa', () => {
-  const env = criarAmbiente();
-  assert.match(env.rpc('auth.login', { senha: 'a' }).erro, /GESTAO_SENHA/);
+  assert.match(criarAmbiente().rpc('auth.login', { email: EMAIL, senha: 'a' }).erro, /GESTAO_SENHA/);
 });
 
-test('fluxo completo: cadastro, programação, apontamento, aderência, fotos', () => {
-  const env = criarAmbiente({ props: { GESTAO_SENHA: 's' } });
-  const token = env.rpc('auth.login', { senha: 's' }).dados.token;
-  const g = (m, a) => env.rpc('gestao.' + m, { ...a, token });
+test('fluxo completo: cadastro, programação, entrada por matrícula, apontamento, aderência, fotos', () => {
+  const { env, g } = gestao();
+  const eq = g('equipe.salvar', { nome: 'AGA' }).dados;
+  const c = g('colaborador.salvar', { nome: 'José Nilson', equipe_id: eq.id, matricula: '0102345', regime: 'Turno' }).dados;
+  assert.match(g('colaborador.salvar', { nome: 'Outro', equipe_id: eq.id, matricula: '102345' }).erro, /mesma matrícula|já existe/i);
+  assert.strictEqual(g('colaborador.salvar', { nome: 'Sem Mat', equipe_id: eq.id }).ok, false);
 
-  const eq = g('equipe.salvar', { nome: 'Mec A' }).dados;
-  const c = g('colaborador.salvar', { nome: 'Fulano', equipe_id: eq.id }).dados;
   const h = hoje(), ontem = somar(h, -1), amanha = somar(h, 1);
-  const a1 = g('atividade.salvar', { os: '1', descricao: 'A', data: h, colaborador_id: c.id }).dados;
-  const a2 = g('atividade.salvar', { os: '2', descricao: 'B', data: h, colaborador_id: c.id }).dados;
-  const a3 = g('atividade.salvar', { os: '3', descricao: 'C ontem', data: ontem, colaborador_id: c.id }).dados;
+  const base = { colaborador_id: c.id, prioridade: 'Alta', equipamento: 'TR-02', area: 'SE-02' };
+  const a1 = g('atividade.salvar', { ...base, os: '1', descricao: 'A', data: h }).dados;
+  const a2 = g('atividade.salvar', { ...base, os: '2', descricao: 'B', data: h }).dados;
+  const a3 = g('atividade.salvar', { ...base, os: '3', descricao: 'C (ontem)', data: ontem }).dados;
 
-  let t = env.rpc('publico.tarefas', { id: c.id }).dados;
-  assert.strictEqual(t.atividades.length, 2);
-  assert.strictEqual(t.anteriores.length, 1);
+  // entrada: matrícula (com ou sem zeros à esquerda) + turno
+  assert.match(env.rpc('publico.entrar', { matricula: '999', turno: 'Turno A' }).erro, /não encontrada/);
+  const ent = env.rpc('publico.entrar', { matricula: '102345', turno: 'Turno B' });
+  assert.strictEqual(ent.ok, true, JSON.stringify(ent));
+  assert.strictEqual(ent.dados.perfil.turno, 'Turno B');
+  assert.strictEqual(ent.dados.tarefas.atividades.length, 2);
+  assert.strictEqual(ent.dados.tarefas.atividades[0].prioridade, 'Alta');
+  assert.strictEqual(ent.dados.tarefas.anteriores.length, 1);
+  assert.ok(ent.dados.tarefas.semana.numero >= 1);
 
-  assert.strictEqual(env.rpc('publico.enviar', { colaborador_id: c.id, data: h, itens: [], extras: [{ descricao: 'x' }] }).ok, false);
+  const itens = (b, extra) => ({ colaborador_id: c.id, data: h, turno: 'Turno B', observacao: 'ok', ...extra, itens: b });
+  // pendente exige motivo e justificativa; extra exige tipo
+  assert.match(env.rpc('publico.enviar', itens([{ atividade_id: a1.id, status: 'pendente' }])).erro, /motivo/i);
+  assert.match(env.rpc('publico.enviar', itens([{ atividade_id: a1.id, status: 'pendente', motivo: 'material' }])).erro, /justificativa/i);
+  assert.match(env.rpc('publico.enviar', itens([], { extras: [{ descricao: 'x' }] })).erro, /BPF ou Corretiva/);
 
-  const foto = 'data:image/jpeg;base64,/9j/4AAQ';
-  const envio = {
-    colaborador_id: c.id, data: h, observacao: 'ok',
-    itens: [{ atividade_id: a1.id, status: 'concluida' }, { atividade_id: a2.id, status: 'pendente' }, { atividade_id: a3.id, status: 'concluida' }],
-    extras: [{ os: '9', descricao: 'Vazamento', classificacao: 'Corretiva' }], fotos: [foto],
-  };
-  let r = env.rpc('publico.enviar', envio);
-  assert.strictEqual(r.ok, true, JSON.stringify(r));
-  // reenvio substitui e mantém a foto anterior
-  envio.fotos = []; envio.itens[1].status = 'iniciada';
+  const envio = itens([
+    { atividade_id: a1.id, status: 'concluida' },
+    { atividade_id: a2.id, status: 'pendente', motivo: 'material', justificativa: 'Sem fusível' },
+    { atividade_id: a3.id, status: 'concluida' },
+  ], { extras: [{ descricao: 'Vazamento', equipamento: 'CCM-02', classificacao: 'Corretiva' }], fotos: ['data:image/jpeg;base64,/9j/4AAQ'] });
   assert.strictEqual(env.rpc('publico.enviar', envio).ok, true);
-  assert.strictEqual(env.planilhas.envios.length, 2); // cabeçalho + 1
-  assert.strictEqual(env.rpc('publico.tarefas', { id: c.id }).dados.fotos, 1);
-
-  t = env.rpc('publico.tarefas', { id: c.id }).dados;
+  // reenvio substitui e mantém a foto
+  envio.fotos = []; envio.itens[1] = { atividade_id: a2.id, status: 'iniciada' };
+  assert.strictEqual(env.rpc('publico.enviar', envio).ok, true);
+  assert.strictEqual(env.planilhas.envios.length, 2);
+  const t = env.rpc('publico.tarefas', { id: c.id }).dados;
+  assert.strictEqual(t.fotos, 1);
   assert.strictEqual(t.atividades.find(x => x.id === a2.id).status, 'iniciada');
-  assert.strictEqual(t.extras.length, 1);
+  assert.deepStrictEqual(t.extras[0], { descricao: 'Vazamento', equipamento: 'CCM-02', classificacao: 'Corretiva' });
 
-  const m = g('aderencia', { de: ontem, ate: h }).dados;
-  assert.strictEqual(m.geral.planejadas, 3);
-  assert.strictEqual(m.geral.concluidas, 2);
-  assert.strictEqual(m.geral.iniciadas, 1);
-  assert.strictEqual(m.geral.pct_aderencia, 66.7);
-  assert.strictEqual(m.geral.apont_sequencia, 1);
-  assert.strictEqual(m.geral.extras, 1);
-  assert.strictEqual(m.equipes.length, 1);
+  const m = g('painel', { periodo: 'semana', ref: h }).dados.aderencia;
+  const esperadoProgramadas = [h, ontem].filter(d => d >= m.de && d <= m.ate).length * 0 + [a1, a2, a3].filter(a => a.data >= m.de && a.data <= m.ate).length;
+  assert.strictEqual(m.geral.programadas, esperadoProgramadas);
+  const dia = g('painel', { periodo: 'dia', ref: h }).dados.aderencia;
+  assert.strictEqual(dia.geral.programadas, 2);
+  assert.strictEqual(dia.geral.concluidas, 1);
+  assert.strictEqual(dia.geral.iniciadas, 1);
+  assert.strictEqual(dia.geral.no_prazo, 1);
+  assert.strictEqual(dia.geral.pct_aderencia, 50);
+  assert.strictEqual(dia.geral.extras, 1);
+  assert.strictEqual(dia.geral.extras_corretiva, 1);
+  assert.strictEqual(dia.meta, 85);
+  assert.strictEqual(dia.equipes.length, 1);
+  assert.strictEqual(dia.colaboradores[0].nome, 'José Nilson');
+
+  // pendente com motivo aparece em "motivos de não execução"
+  envio.itens[1] = { atividade_id: a2.id, status: 'pendente', motivo: 'liberacao', justificativa: 'Sem liberação' };
+  assert.strictEqual(env.rpc('publico.enviar', envio).ok, true);
+  const dia2 = g('painel', { periodo: 'dia', ref: h }).dados.aderencia;
+  assert.strictEqual(dia2.geral.pendentes, 1);
+  assert.strictEqual(dia2.motivos.find(x => x.codigo === 'liberacao').total, 1);
+  assert.strictEqual(g('painel', { periodo: 'dia', ref: h, colaborador_id: 'outro' }).dados.aderencia.geral.programadas, 0);
 
   const rel = g('relatorios', { data: h }).dados;
-  assert.strictEqual(rel[0].enviaram[0].itens.length, 3);
+  const itRel = rel[0].enviaram[0].itens.find(i => i.status === 'pendente');
+  assert.strictEqual(itRel.motivo, 'Equipamento sem liberação da operação');
+  assert.strictEqual(itRel.justificativa, 'Sem liberação');
+  assert.strictEqual(rel[0].enviaram[0].turno, 'Turno B');
   assert.strictEqual(rel[0].resumo.extras, 1);
 
-  // foto só é servida se registrada em um envio
   const fid = rel[0].enviaram[0].fotos[0];
   assert.match(g('foto', { id: fid }).dados.src, /^data:image\/jpeg;base64,/);
   assert.strictEqual(g('foto', { id: 'qualquer-id-do-drive' }).ok, false);
 
-  // remanejar no calendário reflete na tela do colaborador
+  // calendário: semanas, extras do colaborador e backlog; remanejar reflete na tela do colaborador
+  const cal = g('calendario', {}).dados;
+  assert.strictEqual(cal.semanas.length, 3);
+  assert.strictEqual(cal.semanas[1].numero, cal.semanas[0].numero + 1);
+  assert.strictEqual(cal.extras.length, 1);
   assert.strictEqual(g('atividade.salvar', { id: a2.id, data: amanha }).ok, true);
   assert.strictEqual(env.rpc('publico.tarefas', { id: c.id }).dados.atividades.length, 1);
+  assert.strictEqual(g('atividade.salvar', { id: a2.id, data: '' }).ok, true); // vai para o backlog
+  assert.strictEqual(g('calendario', {}).dados.backlog.length, 1);
   const dup = g('atividade.duplicar', { id: a2.id, data: somar(h, 2) });
   assert.strictEqual(dup.ok, true);
   assert.strictEqual(g('atividade.excluir', { id: dup.dados.id }).ok, true);
 
-  const cal = g('calendario', {}).dados;
-  assert.strictEqual(cal.semanas.length, 3);
-  assert.strictEqual(cal.semanas[1].numero, cal.semanas[0].numero + 1);
-
-  // equipe com colaboradores não pode ser excluída; colaborador é apenas inativado
   assert.strictEqual(g('equipe.excluir', { id: eq.id }).ok, false);
   assert.strictEqual(g('colaborador.inativar', { id: c.id }).ok, true);
-  assert.strictEqual(env.rpc('publico.colaboradores', {}).dados.length, 0);
+  assert.match(env.rpc('publico.entrar', { matricula: '102345', turno: 'Turno A' }).erro, /não encontrada/);
+});
+
+test('folga: colaborador do regime ADM não recebe atividade no fim de semana', () => {
+  const { g } = gestao();
+  const eq = g('equipe.salvar', { nome: 'A' }).dados;
+  const adm = g('colaborador.salvar', { nome: 'Ana ADM', equipe_id: eq.id, matricula: '1', regime: 'ADM' }).dados;
+  const turno = g('colaborador.salvar', { nome: 'Bia Turno', equipe_id: eq.id, matricula: '2', regime: 'Turno' }).dados;
+  let sab = hoje(); while (dow(sab) !== 6) sab = somar(sab, 1);
+  assert.match(g('atividade.salvar', { os: '1', descricao: 'X', data: sab, colaborador_id: adm.id }).erro, /folga/);
+  assert.strictEqual(g('atividade.salvar', { os: '1', descricao: 'X', data: sab, colaborador_id: turno.id }).ok, true);
+  assert.strictEqual(g('atividade.salvar', { os: '2', descricao: 'Y', data: '', colaborador_id: adm.id }).ok, true);
 });
 
 test('cache de leitura: evita ler a planilha e é invalidado por gravações', () => {
-  const env = criarAmbiente({ props: { GESTAO_SENHA: 's' } });
-  const token = env.rpc('auth.login', { senha: 's' }).dados.token;
-  const g = (m, a) => env.rpc('gestao.' + m, { ...a, token });
+  const { env, g } = gestao();
   const eq = g('equipe.salvar', { nome: 'A' }).dados;
-  g('colaborador.salvar', { nome: 'Zé', equipe_id: eq.id });
-
-  env.rpc('publico.colaboradores', {}); // aquece o cache
+  g('colaborador.salvar', { nome: 'Zé', equipe_id: eq.id, matricula: '10' });
+  env.rpc('publico.entrar', { matricula: '10' }); // aquece o cache
   const antes = env.stats.leituras;
-  for (let i = 0; i < 5; i++) assert.strictEqual(env.rpc('publico.colaboradores', {}).dados.length, 1);
+  for (let i = 0; i < 5; i++) assert.strictEqual(env.rpc('publico.entrar', { matricula: '10' }).ok, true);
   assert.strictEqual(env.stats.leituras, antes, 'leituras repetidas não devem tocar a planilha');
-
-  g('colaborador.salvar', { nome: 'Maria', equipe_id: eq.id });           // gravação invalida
-  const lista = env.rpc('publico.colaboradores', {}).dados;
-  assert.deepStrictEqual(lista.map(c => c.nome), ['Maria', 'Zé']);
-  g('colaborador.inativar', { id: lista[0].id });
-  assert.deepStrictEqual(env.rpc('publico.colaboradores', {}).dados.map(c => c.nome), ['Zé']);
+  g('colaborador.salvar', { nome: 'Maria', equipe_id: eq.id, matricula: '11' });
+  assert.strictEqual(env.rpc('publico.entrar', { matricula: '11' }).dados.perfil.nome, 'Maria');
+  const lista = g('cadastros', {}).dados.colaboradores;
+  g('colaborador.inativar', { id: lista.find(c => c.nome === 'Maria').id });
+  assert.strictEqual(env.rpc('publico.entrar', { matricula: '11' }).ok, false);
 });
 
-test('doPost: API JSON para a página hospedada no GitHub Pages', () => {
+test('doPost: API JSON do site', () => {
   const env = criarAmbiente({ props: { GESTAO_SENHA: 's' } });
-  const r = env.doPost(JSON.stringify({ metodo: 'auth.login', args: { senha: 's' } }));
+  const r = env.doPost(JSON.stringify({ metodo: 'auth.login', args: { email: EMAIL, senha: 's' } }));
   assert.strictEqual(r.ok, true);
   const eq = env.doPost(JSON.stringify({ metodo: 'gestao.equipe.salvar', args: { nome: 'X', token: r.dados.token } }));
   assert.strictEqual(eq.ok, true);
-  assert.strictEqual(env.doPost(JSON.stringify({ metodo: 'gestao.equipes', args: {} })).auth, true);
+  assert.strictEqual(env.doPost(JSON.stringify({ metodo: 'gestao.cadastros', args: {} })).auth, true);
   assert.strictEqual(env.doPost('isto não é json').ok, false);
+  assert.strictEqual(env.doPost(JSON.stringify({ metodo: 'ping' })).ok, true);
 });
 
-test('chamadas combinadas: publico.inicio, gestao.painel e gestao.cadastros', () => {
+test('migração: abas antigas ganham as colunas novas sem perder dados', () => {
   const env = criarAmbiente({ props: { GESTAO_SENHA: 's' } });
-  const token = env.rpc('auth.login', { senha: 's' }).dados.token;
-  const g = (m, a) => env.rpc('gestao.' + m, { ...a, token });
-  const eq = g('equipe.salvar', { nome: 'A' }).dados;
-  const c = g('colaborador.salvar', { nome: 'Zé', equipe_id: eq.id }).dados;
-  const h = hoje();
-  g('atividade.salvar', { os: '1', descricao: 'X', data: h, colaborador_id: c.id });
-
-  const sem = env.rpc('publico.inicio', { id: '' }).dados;
-  assert.strictEqual(sem.colaboradores.length, 1); assert.strictEqual(sem.tarefas, null);
-  const com = env.rpc('publico.inicio', { id: c.id }).dados;
-  assert.strictEqual(com.tarefas.atividades.length, 1);
-  assert.strictEqual(env.rpc('publico.inicio', { id: 'id-que-nao-existe' }).dados.tarefas, null);
-
-  const p = g('painel', { de: somar(h, -6), ate: h, equipe_id: '', rdata: h }).dados;
-  assert.strictEqual(p.equipes.length, 1); assert.strictEqual(p.aderencia.geral.planejadas, 1); assert.ok(Array.isArray(p.relatorios));
-  const cad = g('cadastros', {}).dados;
-  assert.strictEqual(cad.equipes.length, 1); assert.strictEqual(cad.colaboradores.length, 1);
-  assert.strictEqual(env.rpc('gestao.painel', {}).auth, true, 'painel exige login');
-  assert.strictEqual(env.rpc('ping', {}).ok, true);
+  // aba "colaboradores" no formato antigo (sem matricula/regime) com um registro
+  env.planilhas.colaboradores = [['id', 'nome', 'equipe_id', 'ativo'], ['c1', 'Antigo', '', true]];
+  env.planilhas.equipes = [['id', 'nome']];
+  const tok = env.rpc('auth.login', { email: EMAIL, senha: 's' }).dados.token;
+  const lista = env.rpc('gestao.cadastros', { token: tok }).dados.colaboradores;
+  assert.strictEqual(lista[0].nome, 'Antigo');
+  assert.strictEqual(lista[0].matricula, '');
+  assert.deepStrictEqual(env.planilhas.colaboradores[0], ['id', 'nome', 'equipe_id', 'ativo', 'matricula', 'regime']);
+  // salvar preenche as colunas novas na posição certa
+  const r = env.rpc('gestao.colaborador.salvar', { id: 'c1', nome: 'Antigo', matricula: '77', regime: 'ADM', token: tok });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(env.planilhas.colaboradores[1], ['c1', 'Antigo', '', true, '77', 'ADM']);
+  const novo = env.rpc('gestao.colaborador.salvar', { nome: 'Novo', matricula: '78', token: tok });
+  assert.strictEqual(novo.ok, true);
+  assert.strictEqual(env.planilhas.colaboradores[2][4], '78');
+  assert.strictEqual(env.rpc('publico.entrar', { matricula: '77' }).dados.perfil.regime, 'ADM');
 });

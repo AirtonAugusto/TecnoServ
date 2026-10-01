@@ -1,4 +1,4 @@
-// Teste de interface: abre Pagina.html no Chromium com um shim de google.script.run ligado ao Code.gs (mocks).
+// Teste de interface: abre docs/index.html no Chromium com a API simulada pelo Code.gs (Sheets/Drive simulados).
 import { createRequire } from 'module';
 import fs from 'fs';
 import path from 'path';
@@ -8,92 +8,117 @@ const { chromium } = require('playwright');
 const { criarAmbiente } = require('./harness.js');
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const out = process.argv[2] || '/tmp/';
-const MODO = process.argv[3] || 'apps-script'; // 'pages' = página hospedada fora do Google (fetch)
-const PAGINA = MODO === 'pages' ? '../../docs/index.html' : '../Pagina.html';
 
 const env = criarAmbiente({ props: { GESTAO_SENHA: 'teste' } });
 const somar = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
-const tok = env.rpc('auth.login', { senha: 'teste' }).dados.token;
-const g = (m, a) => env.rpc('gestao.' + m, { ...a, token: tok }).dados;
-const eqA = g('equipe.salvar', { nome: 'Mecânica - Turno A' }), eqB = g('equipe.salvar', { nome: 'Elétrica - Turno A' });
-const cs = [['Carlos Silva', eqA], ['João Pereira', eqA], ['Ana Lima', eqB]].map(([n, e]) => g('colaborador.salvar', { nome: n, equipe_id: e.id }));
-const tarefas = ['Lubrificação de mancais', 'Troca de correia', 'Inspeção de motor', 'Termografia de painel'];
-const seg = (() => { const d = new Date(hoje + 'T00:00:00Z'); const w = d.getUTCDay() || 7; return somar(hoje, 1 - w); })();
-let k = 0, n = 100;
-for (let i = 0; i < 10; i++) { const data = somar(somar(seg, -7), i); if ([0, 6].includes(new Date(data + 'T00:00:00Z').getUTCDay())) continue;
-  for (const c of cs) for (let j = 0; j < 2; j++) g('atividade.salvar', { os: 'OS-' + n++, descricao: tarefas[k++ % 4], data, colaborador_id: c.id }); }
+const tok = env.rpc('auth.login', { email: 'airton@empresa.com', senha: 'teste' }).dados.token;
+const g = (m, a) => { const r = env.rpc('gestao.' + m, { ...a, token: tok }); if (!r.ok) console.log('SEED ERRO', m, r.erro); return r.dados; };
+
+// ---- dados de exemplo ----
+const eqA = g('equipe.salvar', { nome: 'Alta Tensão · AGA' }), eqB = g('equipe.salvar', { nome: 'SM&A' }), eqC = g('equipe.salvar', { nome: 'Cardozo' });
+const pessoas = [['Neyberte', '100001', eqA, 'ADM'], ['José Nilson', '102345', eqA, 'Turno'], ['Thiago', '100003', eqB, 'ADM'], ['Técnico 4', '100004', eqC, 'Turno'], ['Técnico 5', '100005', eqC, 'ADM']]
+  .map(([n, m, e, r]) => g('colaborador.salvar', { nome: n, matricula: m, equipe_id: e.id, regime: r }));
+const TAREFAS = [['Inspeção termográfica dos barramentos', 'QGBT-01 · Painel principal', 'Subestação Principal', 'Alta'], ['Medição de resistência de isolamento', 'Transformador TR-02 · 13,8 kV', 'SE-02 · Moagem', 'Média'],
+  ['Teste funcional do relé de proteção 50/51', 'Disjuntor DJ-05', 'Subestação Principal', 'Alta'], ['Limpeza e reaperto de conexões', 'CCM-03', 'Planta de beneficiamento', 'Média'], ['Verificação do banco de baterias', 'Retificador RT-02', 'Sala elétrica 2', 'Baixa']];
+const seg = (() => { const w = new Date(hoje + 'T00:00:00Z').getUTCDay() || 7; return somar(hoje, 1 - w); })();
+let n = 40018700, k = 0;
+const ativs = [];
+for (let sem = 0; sem < 3; sem++) for (let d = 0; d < 5; d++) {
+  const data = somar(seg, sem * 7 + d);
+  pessoas.forEach((p, i) => { if ((d + i + sem) % 2 === 0) { const t = TAREFAS[k++ % TAREFAS.length]; ativs.push(g('atividade.salvar', { os: String(n++), descricao: t[0], equipamento: t[1], area: t[2], prioridade: t[3], data, colaborador_id: p.id })); } });
+}
+[['40017915', 'Substituição de isolador trincado', 'SE-02 · Bay 3', 'Backlog'], ['40018020', 'Revisão do sistema de iluminação', 'Sala elétrica 1', 'Terceiro'], ['40018133', 'Ensaio de rigidez dielétrica', 'TR-03', 'SAP · BPF']]
+  .forEach(([os, d, e, o]) => g('atividade.salvar', { os, descricao: d, equipamento: e, origem: o, data: '', colaborador_id: '' }));
+// histórico dos 2 dias anteriores (via envio), para o painel ter números
 const sts = ['concluida', 'concluida', 'iniciada', 'pendente', 'concluida'];
 let s = 0;
-for (const c of cs) for (let d = 1; d <= 6; d++) { const data = somar(hoje, -d);
-  const ats = env.rpc('publico.tarefas', { id: c.id, data: hoje }).dados; // só para validar acesso
-  const itens = env.ctx && []; }
-// apontamentos de dias passados: via planilha diretamente (publico.enviar só aceita hoje-2)
-for (const c of cs) for (const data of [somar(hoje, -1), somar(hoje, -2)]) {
-  const ats = JSON.parse(JSON.stringify(env.ctx.todos_('atividades'))).filter(a => a.colaborador_id === c.id && a.data === data);
-  const r = env.rpc('publico.enviar', { colaborador_id: c.id, data, observacao: 'Turno sem ocorrências', itens: ats.map(a => ({ atividade_id: a.id, status: sts[s++ % sts.length] })), extras: [], fotos: [] });
-  if (!r.ok) console.log('seed', r.erro);
+for (const p of pessoas) for (const data of [somar(hoje, -1), somar(hoje, -2)]) {
+  const minhas = ativs.filter(a => a.colaborador_id === p.id && a.data === data);
+  if (!minhas.length) continue;
+  const r = env.rpc('publico.enviar', { colaborador_id: p.id, data, turno: 'Turno A', itens: minhas.map(a => { const st = sts[s++ % sts.length]; return st === 'pendente' ? { atividade_id: a.id, status: st, motivo: 'material', justificativa: 'Sem sobressalente' } : { atividade_id: a.id, status: st }; }), extras: [] });
+  if (!r.ok) console.log('SEED envio', r.erro);
 }
 
 const errs = [];
 const b = await chromium.launch({ args: ['--no-proxy-server'] });
-const ctx = await b.newContext({ viewport: { width: 1300, height: 900 } });
-await ctx.route('**/cdnjs.cloudflare.com/**', r => r.fulfill({ contentType: 'application/javascript', body: fs.readFileSync(path.join(dir, '../../pcm/public/vendor/chart.umd.js')) }));
-if (MODO === 'pages') {
-  await ctx.route('**/script.google.com/macros/**', async r => {
-    const corpo = r.request().postData() || '{}';
-    const resp = env.doPost(corpo);
-    await r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(resp) });
-  });
-} else await ctx.addInitScript(() => {
-  const mk = () => { let ok = () => {}, bad = () => {}; const o = {
-    withSuccessHandler(f) { ok = f; return o; }, withFailureHandler(f) { bad = f; return o; },
-    rpc(m, a) { window.__rpc(m, a).then(ok, e => bad(new Error(String(e)))); } }; return o; };
-  Object.defineProperty(window, 'google', { value: { script: { get run() { return mk(); } } } });
+const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } });
+await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+await ctx.route('**/script.google.com/macros/**', async r => {
+  const resp = env.doPost(r.request().postData() || '{}');
+  await r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(resp) });
 });
 const p = await ctx.newPage();
-if (MODO !== 'pages') await p.exposeFunction('__rpc', (m, a) => env.rpc(m, a));
-p.on('pageerror', e => errs.push('PAGEERR ' + e.message)); p.on('console', m => m.type() === 'error' && errs.push('CONSOLE ' + m.text()));
-await p.goto('file://' + path.join(dir, PAGINA));
-await p.waitForTimeout(300); console.log('erros iniciais:', errs); await p.screenshot({ path: out + 'gas_ini.png' });
+p.on('pageerror', e => errs.push('PAGEERR ' + e.message)); p.on('console', m => m.type() === 'error' && !/Failed to load resource|net::ERR/.test(m.text()) && errs.push('CONSOLE ' + m.text()));
+p.on('dialog', d => d.accept());
+const docs = 'file://' + path.join(dir, '../../docs/index.html');
+const log = (...a) => console.log(...a);
 
-// --- Operacional ---
-await p.click('[data-ir=operacional]');
-await p.selectOption('#colab', { index: 1 });
+// ---------- login (colaborador) ----------
+await p.goto(docs); await p.waitForSelector('.split');
+await p.screenshot({ path: out + 'N_login.png' });
+await p.fill('#l-mat', '999'); await p.click('#l-ok'); await p.waitForSelector('#l-erro:not([hidden])');
+log('matrícula inválida:', (await p.textContent('#l-erro')).trim());
+await p.fill('#l-mat', '102345'); await p.selectOption('#l-turno', 'Turno A'); await p.click('#l-ok');
 await p.waitForSelector('.ativ');
-await p.click('.cor.v >> nth=0'); await p.click('.cor.a >> nth=1');
-await p.click('#addx'); p.once('dialog', d => d.accept());
-await p.click('#enviar'); await p.waitForTimeout(300);
-console.log('validação extra:', await p.textContent('.toast'));
-await p.selectOption('[data-k=classificacao]', 'BPF'); await p.fill('[data-k=descricao]', 'Limpeza extra'); await p.fill('#obs', 'Turno tranquilo');
-await p.setInputFiles('#arq', { name: 'f.png', mimeType: 'image/png', buffer: fs.readFileSync(path.join(dir, '../../pcm/public/img/logo-anglo.png')) });
-await p.waitForSelector('#fotos img');
-await p.click('#enviar'); await p.waitForTimeout(800);
-console.log('envio:', await p.textContent('.toast'));
-await p.screenshot({ path: out + 'gas_op.png' });
+log('cards:', await p.locator('.ativ').count(), '| header:', (await p.textContent('.topo .quem')).replace(/\s+/g, ' ').trim());
 
-// --- ADM ---
-await p.click('[data-ir=inicio]'); await p.click('[data-ir=adm]');
-await p.waitForSelector('#login-ov');
-await p.fill('#senha', 'errada'); await p.click('#lf button.pri'); await p.waitForTimeout(200);
-console.log('senha errada:', await p.textContent('#lerro'));
-await p.fill('#senha', 'teste'); await p.click('#lf button.pri');
-await p.waitForSelector('.kpi'); await p.waitForTimeout(1200);
-await p.screenshot({ path: out + 'gas_dash.png', fullPage: true });
-console.log('relatório:', (await p.textContent('#rel')).replace(/\s+/g, ' ').slice(0, 160));
-await p.click('.btn-fotos'); await p.waitForSelector('.fotos-rel img');
-console.log('fotos carregadas:', await p.locator('.fotos-rel img').count());
+// ---------- apontamento ----------
+await p.click('.opt[data-st=pendente] >> nth=0'); // primeira OS como pendente
+await p.click('#op-enviar'); await p.waitForTimeout(200);
+log('erro ao enviar incompleto:', (await p.textContent('.painel .erro').catch(() => '')).trim());
+const m2 = await p.locator('[data-mot]').count();
+await p.selectOption('[data-mot]', 'liberacao'); await p.fill('[data-just]', 'Sem liberação da operação');
+// marcar o restante como concluída
+const total = await p.locator('.ativ[data-id]').count();
+for (let i = 0; i < total; i++) { const c = p.locator('.ativ[data-id]').nth(i); if ((await c.locator('.opt[aria-pressed=true]').count()) === 0) await c.locator('.opt[data-st=concluida]').click(); }
+await p.click('#op-extra'); await p.fill('[data-campo=desc]', 'Limpeza extra no painel');
+await p.click('#op-enviar'); await p.waitForTimeout(200);
+log('extra sem tipo bloqueia:', (await p.textContent('.painel .erro').catch(() => '')).trim());
+await p.click('.pick:has-text("BPF")');
+await p.setInputFiles('#op-arq', { name: 'f.png', mimeType: 'image/png', buffer: fs.readFileSync(path.join(dir, '../../docs/logo.png')) });
+await p.waitForSelector('.fotos-g img'); await p.fill('#op-obs', 'Turno tranquilo');
+await p.screenshot({ path: out + 'N_apont.png', fullPage: true });
+await p.click('#op-enviar'); await p.waitForSelector('.toast-top .t');
+log('envio:', (await p.textContent('.toast-top')).replace(/\s+/g, ' ').trim(), '|', (await p.textContent('#op-enviar')).trim());
+await p.click('#op-sair'); await p.waitForSelector('.split');
 
-await p.click('[data-aba=programacao]'); await p.waitForSelector('.chip');
-const chip = p.locator('.chip').first(), id = await chip.getAttribute('data-id');
-await chip.dragTo(p.locator('td[data-d][data-c=""]').nth(3)); await p.waitForTimeout(500);
-console.log('arrastou p/ backlog:', await p.locator(`td[data-c=""] .chip[data-id="${id}"]`).count());
-await p.click('.add >> nth=8'); await p.fill('#f-desc', 'Nova atividade'); await p.click('#f-ok'); await p.waitForTimeout(500);
-console.log('criou:', await p.locator('.chip', { hasText: 'Nova atividade' }).count());
-await p.screenshot({ path: out + 'gas_cal.png' });
-await p.click('[data-aba=cadastros]'); await p.waitForSelector('#te tr');
-await p.fill('#co-nome', 'Novo Colaborador'); await p.click('#fc button.pri'); await p.waitForTimeout(400);
-console.log('cadastrou:', await p.locator('#tc tr', { hasText: 'Novo Colaborador' }).count());
-await p.click('#sair'); await p.waitForSelector('.escolhas');
-console.log('erros:', errs);
+// ---------- ADM ----------
+await p.click('[data-perfil=pcm]');
+await p.fill('#l-email', 'airton@empresa.com'); await p.fill('#l-senha', 'errada'); await p.click('#l-ok');
+await p.waitForSelector('#l-erro:not([hidden])'); log('senha errada:', (await p.textContent('#l-erro')).trim());
+await p.fill('#l-senha', 'teste'); await p.click('#l-ok');
+await p.waitForSelector('.kpi'); await p.waitForTimeout(300);
+log('KPIs:', (await p.locator('.kpi .v').allTextContents()).join(' | '), '| sidebar:', (await p.textContent('.side .who')).replace(/\s+/g, ' ').trim());
+await p.screenshot({ path: out + 'N_dash.png', fullPage: true });
+await p.click('[data-per=dia]'); await p.waitForTimeout(300);
+log('período dia →', (await p.textContent('.cab-pag .e')).trim());
+await p.selectOption('#f-eq', eqC.id); log('filtro equipe → pessoas:', await p.locator('.pbar').count());
+await p.click('[data-per=semana]'); await p.waitForTimeout(300);
+
+await p.click('.nav[data-aba=programacao]'); await p.waitForSelector('.task');
+await p.screenshot({ path: out + 'N_prog.png', fullPage: true });
+const antes = await p.locator('#p-backlog .task').count();
+const card = p.locator('.celula .task[data-t]').first(); const id = await card.getAttribute('data-t');
+await card.dragTo(p.locator('#p-backlog')); await p.waitForTimeout(400);
+log('backlog:', antes, '→', await p.locator('#p-backlog .task').count());
+await p.locator('#p-backlog .task').first().dragTo(p.locator('.celula:not(.folga)').nth(7)); await p.waitForTimeout(400);
+log('backlog depois de programar:', await p.locator('#p-backlog .task').count());
+await p.click('#p-nova'); await p.fill('#m-os', '40019999'); await p.fill('#m-desc', 'OS de teste'); await p.fill('#m-equip', 'TR-09'); await p.click('#m-save'); await p.waitForTimeout(400);
+log('criou OS:', await p.locator('.task', { hasText: 'OS de teste' }).count());
+await p.click('.task[data-t] >> nth=0'); await p.waitForSelector('#m-form'); await p.screenshot({ path: out + 'N_modal.png' }); await p.click('#m-cancel');
+await p.click('.sem >> nth=1'); await p.waitForTimeout(150);
+log('semana 2 selecionada:', await p.locator('.sem[aria-selected=true] b').textContent());
+
+await p.click('.nav[data-aba=relatorios]'); await p.waitForSelector('.rel-eq');
+log('relatório:', (await p.textContent('#rel-lista')).replace(/\s+/g, ' ').slice(0, 170));
+await p.click('[data-fotos]'); await p.waitForSelector('.fotos-rel img'); log('fotos:', await p.locator('.fotos-rel img').count());
+await p.screenshot({ path: out + 'N_rel.png', fullPage: true });
+
+await p.click('.nav[data-aba=cadastros]'); await p.waitForSelector('#c-fc');
+await p.fill('#c-nome', 'Novo Colaborador'); await p.fill('#c-mat', '555'); await p.click('#c-fc .btn.pri'); await p.waitForTimeout(400);
+log('cadastrou:', await p.locator('#c-fc ~ div tr', { hasText: 'Novo Colaborador' }).count());
+await p.screenshot({ path: out + 'N_cad.png', fullPage: true });
+await p.click('#adm-sair'); await p.waitForSelector('.split');
+log('erros:', errs);
 await b.close();
