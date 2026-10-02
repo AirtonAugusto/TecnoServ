@@ -72,15 +72,19 @@ function doPost(e) {
  * Opcional: crie um acionador por tempo (Acionadores > Adicionar > manterAtivo > a cada 5 minutos)
  * para manter o sistema "acordado" e reduzir a demora do primeiro acesso.
  */
-function manterAtivo() { todos_('equipes'); }
+function manterAtivo() { cache_ = {}; cab_ = {}; semCache_ = false; Object.keys(SCHEMAS_).forEach(function (t) { todos_(t); }); }
 
 /** Execute uma vez no editor (Executar > preparar) para criar/atualizar as abas e autorizar o script. */
 function preparar() {
   Object.keys(SCHEMAS_).forEach(function (t) { folha_(t); });
   pastaFotos_();
   segredo_();
+  // Acionador que mantém o sistema "acordado" (a cada 5 minutos), criado uma única vez
+  var existe = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'manterAtivo'; });
+  if (!existe) ScriptApp.newTrigger('manterAtivo').timeBased().everyMinutes(5).create();
+  manterAtivo();
   var ok = !!PropertiesService.getScriptProperties().getProperty('GESTAO_SENHA');
-  Logger.log(ok ? 'Pronto. Abas criadas/atualizadas e senha encontrada.' : 'ATENÇÃO: defina a propriedade GESTAO_SENHA em Configurações do projeto.');
+  Logger.log(ok ? 'Pronto. Abas criadas/atualizadas, acionador manterAtivo ativo e senha encontrada.' : 'ATENÇÃO: defina a propriedade GESTAO_SENHA em Configurações do projeto.');
 }
 
 /* ======================= DISPATCHER ======================= */
@@ -128,6 +132,7 @@ function rpc(metodo, args) {
     }
     cache_ = {}; cab_ = {};
     semCache_ = !!ESCRITA_[metodo];
+    if (!semCache_) precarregar_();
     if (ESCRITA_[metodo]) { lock = LockService.getScriptLock(); lock.waitLock(25000); }
     return { ok: true, dados: fn(args) };
   } catch (e) {
@@ -245,6 +250,29 @@ function gravarCache_(t, v, linhas) {
   try { cacheTab_().putAll(mapa, 21600); } catch (e) { /* tabela grande demais: segue sem cache */ }
 }
 
+/** Lê todas as tabelas do cache em 3 idas ao CacheService (em vez de ~3 por tabela). */
+function precarregar_() {
+  try {
+    var c = cacheTab_(), nomes = Object.keys(SCHEMAS_);
+    var vs = c.getAll(nomes.map(function (t) { return 'v:' + t; }));
+    var comVersao = nomes.filter(function (t) { return vs['v:' + t]; });
+    var ns = c.getAll(comVersao.map(function (t) { return 'd:' + t + ':' + vs['v:' + t] + ':n'; }));
+    var chaves = [], plano = {};
+    comVersao.forEach(function (t) {
+      var base = 'd:' + t + ':' + vs['v:' + t] + ':', n = Number(ns[base + 'n'] || 0);
+      if (!n) return;
+      plano[t] = [];
+      for (var i = 0; i < n; i++) { plano[t].push(base + i); chaves.push(base + i); }
+    });
+    var partes = chaves.length ? c.getAll(chaves) : {};
+    Object.keys(plano).forEach(function (t) {
+      var txt = '';
+      for (var i = 0; i < plano[t].length; i++) { var p = partes[plano[t][i]]; if (p == null) return; txt += p; }
+      try { cache_[t] = JSON.parse(txt); } catch (e) { /* ignora: lê da planilha */ }
+    });
+  } catch (e) { /* sem cache: segue lendo a planilha */ }
+}
+
 function todos_(t) {
   if (cache_[t]) return cache_[t];
   var v = null, lido = null;
@@ -312,9 +340,12 @@ function removerOnde_(t, fn) {
 /* ======================= AUTENTICAÇÃO ======================= */
 
 function props_() { return PropertiesService.getScriptProperties(); }
+var segredoMem_ = null;
 function segredo_() {
+  if (segredoMem_) return segredoMem_;
   var p = props_(), s = p.getProperty('SESSION_SECRET');
   if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); p.setProperty('SESSION_SECRET', s); }
+  segredoMem_ = s;
   return s;
 }
 function iguais_(a, b) { // comparação em tempo constante
@@ -349,7 +380,10 @@ function authLogin_(a) {
     throw erro_('Senha incorreta.');
   }
   c.remove('falhas');
-  return { token: emitirToken_(), usuario: { nome: 'PCM', papel: 'Gestão' } };
+  var r = { token: emitirToken_(), usuario: { nome: 'PCM', papel: 'Gestão' } };
+  if (a.painel) { semCache_ = false; precarregar_(); r.painel = gPainel_(a.painel); }
+  if (a.tudo) { r.calendario = gCalendario_(); r.cadastros = gCadastros_(); } // abre todas as abas sem nova espera
+  return r;
 }
 
 /* ======================= OPERACIONAL (colaborador) ======================= */

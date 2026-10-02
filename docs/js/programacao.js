@@ -79,10 +79,14 @@ const Prog = (() => {
   }
 
   const achar = id => C.atividades.find(t => t.id === id) || C.backlog.find(t => t.id === id);
+  const salvando = id => String(id).startsWith('tmp-');
+  const guardar = () => Cache.gravar('gestao.calendario', {}, C); // mantém o cache do aparelho igual à tela
+  const colocarNaLista = t => { C.atividades = C.atividades.filter(x => x !== t); C.backlog = C.backlog.filter(x => x !== t); (t.data ? C.atividades : C.backlog).push(t); };
 
   // Move uma OS (arrastar). Mostra na hora e confirma com o servidor em seguida.
   async function mover(id, data, colabId) {
     const t = achar(id); if (!t) return;
+    if (salvando(id)) return toast('Aguarde, ainda salvando esta OS…', true);
     const p = pessoa(colabId || t.colaborador_id);
     if (data && folga(p, data)) return toast(`${p.nome} está de folga neste dia`, true);
     const antes = { data: t.data, colaborador_id: t.colaborador_id };
@@ -91,7 +95,7 @@ const Prog = (() => {
     (data ? C.atividades : C.backlog).push(t);
     arrasto = null; sobre = null; desenhar();
     toast(data ? `OS ${t.os} → ${diaSem(data)} ${fmtData(data)} · ${p ? p.nome : ''}` : `OS ${t.os} enviada ao backlog`);
-    try { await rpc('gestao.atividade.salvar', { id, data, colaborador_id: t.colaborador_id }); }
+    try { await rpc('gestao.atividade.salvar', { id, data, colaborador_id: t.colaborador_id }); guardar(); }
     catch (e) { toast(e.message, true); Object.assign(t, antes); carregar(); }
   }
 
@@ -100,7 +104,7 @@ const Prog = (() => {
     $$('[data-sem]', el).forEach(b => b.onclick = () => { semana = Number(b.dataset.sem); desenhar(); });
     $$('[data-add]', el).forEach(b => b.onclick = () => { const [pid, di] = b.dataset.add.split(':'); abrirModal(null, { data: C.semanas[semana].dias[Number(di)], colab: pid }); });
     $$('[data-t]', el).forEach(b => {
-      b.onclick = () => abrirModal(achar(b.dataset.t));
+      b.onclick = () => (salvando(b.dataset.t) ? toast('Aguarde, ainda salvando esta OS…', true) : abrirModal(achar(b.dataset.t)));
       b.ondragstart = e => { try { e.dataTransfer.setData('text/plain', b.dataset.t); e.dataTransfer.effectAllowed = 'copyMove'; } catch (_) { /* ignora */ } arrasto = b.dataset.t; };
       b.ondragend = () => { arrasto = null; sobre = null; desenhar(); };
     });
@@ -136,24 +140,29 @@ const Prog = (() => {
     if (folgaMarcada(colabId, data)) return toast(`${p.nome} já está de folga neste dia`, true);
     if (C.atividades.some(t => t.colaborador_id === colabId && t.data === data)) return toast(`Já há OS programada para ${p.nome} neste dia. Mova a OS antes.`, true);
     const id = payload === 'f:novo' ? '' : payload.slice(2);
-    if (id) { const f = C.folgas.find(x => x.id === id); if (f) { f.data = data; f.colaborador_id = colabId; } }
-    else C.folgas.push({ id: 'tmp-' + Date.now(), colaborador_id: colabId, data, descricao: 'Folga', origem: 'Folga' });
+    if (salvando(id)) return toast('Aguarde, ainda salvando esta folga…', true);
+    let f = id ? C.folgas.find(x => x.id === id) : null;
+    if (f) { f.data = data; f.colaborador_id = colabId; }
+    else { f = { id: 'tmp-' + Date.now(), colaborador_id: colabId, data, descricao: 'Folga', origem: 'Folga' }; C.folgas.push(f); }
     arrasto = null; sobre = null; desenhar();
     toast(`Folga de ${p.nome} · ${diaSem(data)} ${fmtData(data)}`);
-    try { await rpc('gestao.folga.salvar', { id, colaborador_id: colabId, data }); if (!id) await carregar(); }
+    try { const r = await rpc('gestao.folga.salvar', { id, colaborador_id: colabId, data }); Object.assign(f, r); guardar(); desenhar(); }
     catch (e) { toast(e.message, true); carregar(); }
   }
   async function removerFolga(id) {
     const f = C.folgas.find(x => x.id === id), p = f && pessoa(f.colaborador_id);
     C.folgas = C.folgas.filter(x => x.id !== id); desenhar();
-    if (id.startsWith('tmp-')) return carregar();
+    if (salvando(id)) return carregar();
     toast(p ? `Folga de ${p.nome} removida` : 'Folga removida');
-    try { await rpc('gestao.folga.excluir', { id }); } catch (e) { toast(e.message, true); carregar(); }
+    try { await rpc('gestao.folga.excluir', { id }); guardar(); } catch (e) { toast(e.message, true); carregar(); }
   }
 
   async function duplicarPara(id, data, colabId) {
-    try { await rpc('gestao.atividade.duplicar', { id, data, colaborador_id: colabId }); toast('OS duplicada'); arrasto = null; sobre = null; await carregar(); }
-    catch (e) { toast(e.message, true); }
+    const t = achar(id); if (!t || salvando(id)) return;
+    const copia = { ...t, id: 'tmp-' + Date.now(), data, colaborador_id: colabId, status: 'programada' };
+    colocarNaLista(copia); arrasto = null; sobre = null; desenhar(); toast('OS duplicada');
+    try { Object.assign(copia, await rpc('gestao.atividade.duplicar', { id, data, colaborador_id: colabId }), { status: 'programada' }); guardar(); desenhar(); }
+    catch (e) { toast(e.message, true); carregar(); }
   }
 
   /* ---------- janela de criar / editar OS ---------- */
@@ -200,27 +209,43 @@ const Prog = (() => {
       return { os: $('#m-os', o).value.trim(), descricao: $('#m-desc', o).value.trim(), equipamento: $('#m-equip', o).value.trim(), area: $('#m-area', o).value.trim(), prioridade: $('#m-prio', o).value, colaborador_id: $('#m-col', o).value, data };
     };
     const erro = msg => { const e = $('#m-erro', o); e.hidden = !msg; e.innerHTML = msg ? icone('alerta', 's') + esc(msg) : ''; };
-    const rodar = async (fn, msg) => { try { await fn(); o.fechar(); toast(msg); await carregar(); } catch (e) { erro(e.message); } };
+    // Aplica na tela na hora, fecha a janela e confirma com o servidor por trás
+    const otimista = (aplicar, chamada, msg, aoConfirmar) => {
+      aplicar(); o.fechar(); desenhar(); toast(msg);
+      chamada().then(r => { if (aoConfirmar) aoConfirmar(r); guardar(); desenhar(); }).catch(e => { toast(e.message, true); carregar(); });
+    };
     $('#m-x', o).onclick = $('#m-cancel', o).onclick = o.fechar;
     $('#m-form', o).onsubmit = ev => {
       ev.preventDefault(); const d = dados();
       if (!d.os || !d.descricao) return erro('Informe o número da OS e a descrição.');
       const p = pessoa(d.colaborador_id);
       if (d.data && folga(p, d.data)) return erro(`${p.nome} está de folga em ${DIAS_LONGOS[diaIdx(d.data)]}.`);
-      rodar(() => rpc('gestao.atividade.salvar', novo ? d : { id: t.id, ...d }), novo ? `OS ${d.os} criada` : `OS ${d.os} atualizada`);
+      if (novo) {
+        const temp = { id: 'tmp-' + Date.now(), ...d, origem: 'Manual', status: 'programada' };
+        otimista(() => colocarNaLista(temp), () => rpc('gestao.atividade.salvar', d), `OS ${d.os} criada`, r => Object.assign(temp, r, { status: 'programada' }));
+      } else {
+        const antes = { ...t };
+        otimista(() => { Object.assign(t, d); colocarNaLista(t); }, () => rpc('gestao.atividade.salvar', { id: t.id, ...d }), `OS ${d.os} atualizada`, () => { if (!t.status) t.status = antes.status; });
+      }
     };
     if (!novo) {
-      $('#m-back', o).onclick = () => rodar(() => rpc('gestao.atividade.salvar', { id: t.id, data: '' }), `OS ${t.os} enviada ao backlog`);
-      $('#m-dup', o).onclick = () => { const d = dados(); rodar(() => rpc('gestao.atividade.duplicar', { id: t.id, ...d }), 'OS duplicada'); };
-      $('#m-del', o).onclick = () => { if (confirm('Excluir esta OS da programação?')) rodar(() => rpc('gestao.atividade.excluir', { id: t.id }), 'OS excluída'); };
+      $('#m-back', o).onclick = () => otimista(() => { t.data = ''; colocarNaLista(t); }, () => rpc('gestao.atividade.salvar', { id: t.id, data: '' }), `OS ${t.os} enviada ao backlog`);
+      $('#m-dup', o).onclick = () => {
+        const d = dados(), copia = { ...t, ...d, id: 'tmp-' + Date.now(), status: 'programada' };
+        otimista(() => colocarNaLista(copia), () => rpc('gestao.atividade.duplicar', { id: t.id, ...d }), 'OS duplicada', r => Object.assign(copia, r, { status: 'programada' }));
+      };
+      $('#m-del', o).onclick = () => {
+        if (!confirm('Excluir esta OS da programação?')) return;
+        otimista(() => { C.atividades = C.atividades.filter(x => x !== t); C.backlog = C.backlog.filter(x => x !== t); }, () => rpc('gestao.atividade.excluir', { id: t.id }), 'OS excluída');
+      };
     }
     $('#m-os', o).focus();
   }
 
   async function carregar() {
-    try { C = await rpc('gestao.calendario'); } catch (e) { return toast(e.message, true); }
-    if (semana >= C.semanas.length) semana = 0;
-    desenhar();
+    try {
+      await rpcSWR('gestao.calendario', {}, d => { if (arrasto) return; C = d; if (semana >= C.semanas.length) semana = 0; desenhar(); }, 15000);
+    } catch (e) { toast(e.message, true); }
   }
 
   function mount() {

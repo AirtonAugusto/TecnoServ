@@ -96,6 +96,7 @@ const Op = (() => {
               <button type="button" class="btn-extra" id="op-extra">${icone('mais')}Registrar atividade extra</button>
             </div>
           </div>
+          ${E.pendenteRede ? `<div class="aviso" style="border-color:#FDE68A;background:#FFFBEB">${icone('alerta')}<span>Sem conexão agora. O relatório ficou guardado neste aparelho e será enviado sozinho quando a internet voltar — não precisa refazer.</span></div>` : ''}
           ${E.jaEnviado ? `<div class="aviso" style="border-color:#86EFAC;background:#F0FDF4">${icone('ok')}<span>Este turno já foi enviado às ${horaDe(E.jaEnviado)}. Você pode ajustar e reenviar: o novo envio substitui o anterior.</span></div>` : ''}
           <div class="cards">${lista.length ? lista.map(c => cardHtml(c, false)).join('') : '<p class="nota" style="grid-column:1/-1">Nenhuma atividade programada para este dia. Use “Registrar atividade extra” se fez algo fora da programação.</p>'}</div>
           ${d.anteriores.length ? `<div class="sec-t" style="margin-top:8px"><div><h1 style="font-size:20px">Pendências de dias anteriores</h1><p>Atividades programadas antes que ainda não foram concluídas. Atualize o status se avançou nelas.</p></div></div>
@@ -129,7 +130,29 @@ const Op = (() => {
     $$('[data-x]').forEach(a => { const x = E.extras.find(e => e.id === a.dataset.x); if (!x) return; x.desc = $('[data-campo=desc]', a).value; x.equip = $('[data-campo=equip]', a).value; });
     $$('[data-just]').forEach(t => { E.just[t.dataset.just] = t.value; });
   }
-  const mudou = () => { E.sent = false; };
+  const mudou = () => { E.sent = false; E.mexeu = true; };
+
+  // A versão do servidor chegou depois de abrir pelo cache: se a pessoa ainda não mexeu, troca tudo;
+  // se já mexeu, mantém o que ela marcou e só traz as novidades (OS novas, etc.).
+  function atualizar(r) {
+    if (!E || location.hash !== '#apontamento' || E.perfil.id !== r.perfil.id || E.d.data !== r.tarefas.data) return;
+    Sessao.entrarColab(r);
+    if (!E.mexeu) { iniciarEstado(r.perfil, r.tarefas); desenhar(); return; }
+    const local = { marcas: E.marcas, mot: E.mot, just: E.just, extras: E.extras, fotos: E.fotos, obs: E.obs, showErr: E.showErr, mexeu: true };
+    iniciarEstado(r.perfil, r.tarefas);
+    E.marcas = { ...E.marcas, ...local.marcas }; E.mot = { ...E.mot, ...local.mot }; E.just = { ...E.just, ...local.just };
+    Object.assign(E, { extras: local.extras, fotos: local.fotos, obs: local.obs, showErr: local.showErr, mexeu: true });
+    guardarCampos(); desenhar();
+  }
+
+  // Depois de enviar, guarda no aparelho como ficou (a próxima abertura já mostra assim)
+  function guardarNoAparelho() {
+    const marca = a => ({ ...a, status: E.marcas[a.id] || '', motivo: E.mot[a.id] || '', justificativa: E.just[a.id] || '' });
+    Cache.gravar('publico.entrar', { id: E.perfil.id }, {
+      perfil: E.perfil,
+      tarefas: { ...E.d, atividades: E.d.atividades.map(marca), anteriores: E.d.anteriores.map(marca), extras: E.extras.map(x => ({ descricao: x.desc, equipamento: x.equip, classificacao: x.tipo })), observacao: E.obs, fotos: E.fotosEnviadas, enviado_em: E.jaEnviado },
+    });
+  }
 
   async function addFotos(arquivos) {
     const imgs = Array.from(arquivos || []).filter(f => f.type && f.type.startsWith('image/'));
@@ -144,7 +167,8 @@ const Op = (() => {
     $('#op-sair').onclick = () => { Sessao.sairColab(); ir('login', 'campo'); };
     $('#op-extra').onclick = () => { guardarCampos(); E.extras.push({ id: 'x' + (++seq), desc: '', equip: '', tipo: '' }); mudou(); desenhar(); const u = $$('[data-x]').pop(); if (u) $('[data-campo=desc]', u).focus(); };
     $('#op-data').onchange = async e => {
-      try { const d = await rpc('publico.tarefas', { id: E.perfil.id, data: e.target.value }); iniciarEstado(E.perfil, d); desenhar(); } catch (err) { toast(err.message, true); desenhar(); }
+      const perfil = E.perfil;
+      try { await rpcSWR('publico.tarefas', { id: perfil.id, data: e.target.value }, d => { iniciarEstado(perfil, d); desenhar(); }); } catch (err) { toast(err.message, true); desenhar(); }
     };
     $$('[data-pick]').forEach(b => b.onclick = () => { guardarCampos(); const id = b.dataset.pick, st = b.dataset.st; if (E.marcas[id] === st) delete E.marcas[id]; else E.marcas[id] = st; mudou(); desenhar(); });
     $$('[data-mot]').forEach(s => s.onchange = () => { guardarCampos(); E.mot[s.dataset.mot] = s.value; mudou(); desenhar(); });
@@ -176,18 +200,27 @@ const Op = (() => {
     }
     E.showErr = false;
     const itens = [...E.d.atividades, ...E.d.anteriores].filter(a => E.marcas[a.id]).map(a => ({ atividade_id: a.id, status: E.marcas[a.id], motivo: E.mot[a.id] || '', justificativa: (E.just[a.id] || '').trim() }));
-    const btn = $('#op-enviar'); btn.disabled = true; btn.lastChild.textContent = 'Enviando…';
+    const envio = {
+      colaborador_id: E.perfil.id, turno: E.perfil.turno, data: E.d.data, observacao: E.obs, itens,
+      extras: E.extras.map(x => ({ descricao: x.desc.trim(), equipamento: x.equip.trim(), classificacao: x.tipo })),
+      fotos: E.fotos.map(f => f.url),
+    };
+    // Mostra como enviado na hora; o envio de verdade segue por trás (e fica guardado se a internet cair).
+    const guardado = Fila.colocar(envio);
+    const fotosAntes = E.fotos;
+    E.fotosEnviadas += E.fotos.length; E.fotos = [];
+    E.sent = true; E.sentAt = horaDe(new Date().toISOString()); E.toast = true; E.jaEnviado = new Date().toISOString(); E.pendenteRede = false;
+    E.mexeu = false; guardarNoAparelho();
+    desenhar(); window.scrollTo({ top: 0, behavior: 'smooth' });
+    clearTimeout(toastT2); toastT2 = setTimeout(() => { E.toast = false; const t = $('.toast-top'); if (t) t.innerHTML = ''; }, 3800);
     try {
-      await rpc('publico.enviar', {
-        colaborador_id: E.perfil.id, turno: E.perfil.turno, data: E.d.data, observacao: E.obs, itens,
-        extras: E.extras.map(x => ({ descricao: x.desc.trim(), equipamento: x.equip.trim(), classificacao: x.tipo })),
-        fotos: E.fotos.map(f => f.url),
-      });
-      E.fotosEnviadas += E.fotos.length; E.fotos = [];
-      E.sent = true; E.sentAt = horaDe(new Date().toISOString()); E.toast = true; E.jaEnviado = new Date().toISOString();
-      desenhar(); window.scrollTo({ top: 0, behavior: 'smooth' });
-      clearTimeout(toastT2); toastT2 = setTimeout(() => { E.toast = false; const t = $('.toast-top'); if (t) t.innerHTML = ''; }, 3800);
-    } catch (e) { toast(e.message, true); desenhar(); }
+      if (guardado) await Fila.enviar(envio); else await rpc('publico.enviar', envio);
+    } catch (e) {
+      if (e.rede && guardado) { E.pendenteRede = true; desenhar(); return; } // fica na fila e vai sozinho quando voltar a internet
+      if (guardado) Fila.tirar(envio);
+      E.sent = false; E.jaEnviado = null; E.fotosEnviadas -= fotosAntes.length; E.fotos = fotosAntes;
+      toast(e.message, true); desenhar();
+    }
   }
 
   function mount() {
@@ -195,5 +228,5 @@ const Op = (() => {
     iniciarEstado(s.perfil, s.tarefas);
     desenhar();
   }
-  return { mount };
+  return { mount, atualizar };
 })();

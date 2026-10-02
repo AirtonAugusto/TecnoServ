@@ -15,13 +15,15 @@ const Cad = (() => {
   }
   const valoresRegime = (pref, raiz) => { const regime = $(`#${pref}-reg`, raiz).value; return { regime, letra: regime === 'ADM' ? '' : $(`#${pref}-letra`, raiz).value }; };
 
+  const salvando = id => String(id).startsWith('tmp-');
   function linhaColab(c) {
+    const dis = salvando(c.id) ? 'disabled' : '';
     return `<tr style="${c.ativo ? '' : 'opacity:.5'}">
       <td><span style="display:inline-flex;align-items:center;gap:10px">${avatar(c.nome, c.id, 30, 12)}<b>${esc(c.nome)}</b>${c.ativo ? '' : ' <span class="chip">inativo</span>'}</span></td>
       <td>${esc(nomeEq(c.equipe_id))}</td><td>${esc(rotuloTurno(c))}</td>
-      <td style="text-align:right;white-space:nowrap"><button class="btn sm" data-edit="${c.id}" style="min-height:36px">Editar</button>
-        ${c.ativo ? `<button class="btn sm" data-inat="${c.id}" style="min-height:36px">Inativar</button>` : `<button class="btn sm" data-ativ="${c.id}" style="min-height:36px">Reativar</button>`}
-        <button class="btn perigo sm" data-exc="${c.id}" style="min-height:36px">Excluir</button></td></tr>`;
+      <td style="text-align:right;white-space:nowrap"><button class="btn sm" data-edit="${c.id}" style="min-height:36px" ${dis}>Editar</button>
+        ${c.ativo ? `<button class="btn sm" data-inat="${c.id}" style="min-height:36px" ${dis}>Inativar</button>` : `<button class="btn sm" data-ativ="${c.id}" style="min-height:36px" ${dis}>Reativar</button>`}
+        <button class="btn perigo sm" data-exc="${c.id}" style="min-height:36px" ${dis}>Excluir</button></td></tr>`;
   }
 
   function desenhar() {
@@ -45,19 +47,35 @@ const Cad = (() => {
         ${grupos.map(g => `<tr class="grp-l"><td colspan="4">${g.nome} <span>· ${g.lista.length} ${g.lista.length === 1 ? 'pessoa' : 'pessoas'}</span></td></tr>${g.lista.map(linhaColab).join('')}`).join('') || '<tr><td colspan="4" class="nota">Nenhum colaborador cadastrado.</td></tr>'}</table></div>
     </section>`;
     ligarRegime('c', el);
-    $('#c-fe', el).onsubmit = e => { e.preventDefault(); acao(async () => { await rpc('gestao.equipe.salvar', { nome: $('#c-eq-nome', el).value }); }); };
-    $('#c-fc', el).onsubmit = e => {
-      e.preventDefault();
-      acao(async () => { await rpc('gestao.colaborador.salvar', { nome: $('#c-nome', el).value, equipe_id: $('#c-eq', el).value, ...valoresRegime('c', el) }); toast('Colaborador adicionado'); });
+    $('#c-fe', el).onsubmit = e => {
+      e.preventDefault(); const nome = $('#c-eq-nome', el).value.trim(); if (!nome) return;
+      const temp = { id: 'tmp-' + Date.now(), nome };
+      otimista(() => equipes.push(temp), () => rpc('gestao.equipe.salvar', { nome }), r => Object.assign(temp, r), `Equipe ${nome} adicionada`);
     };
-    $$('[data-ren]', el).forEach(b => b.onclick = () => { const e = equipes.find(x => x.id === b.dataset.ren), nome = prompt('Novo nome da equipe:', e.nome); if (nome) acao(() => rpc('gestao.equipe.salvar', { id: e.id, nome })); });
-    $$('[data-dele]', el).forEach(b => b.onclick = () => confirm('Excluir esta equipe?') && acao(() => rpc('gestao.equipe.excluir', { id: b.dataset.dele })));
-    $$('[data-inat]', el).forEach(b => b.onclick = () => confirm('Inativar colaborador? O histórico é mantido e ele deixa de entrar no apontamento.') && acao(() => rpc('gestao.colaborador.inativar', { id: b.dataset.inat })));
-    $$('[data-ativ]', el).forEach(b => b.onclick = () => { const c = colabs.find(x => x.id === b.dataset.ativ); acao(() => rpc('gestao.colaborador.salvar', { ...c, ativo: true })); });
+    $('#c-fc', el).onsubmit = e => {
+      e.preventDefault(); const nome = $('#c-nome', el).value.trim(); if (!nome) return;
+      const dados = { nome, equipe_id: $('#c-eq', el).value, ...valoresRegime('c', el) };
+      const temp = { id: 'tmp-' + Date.now(), ativo: true, matricula: '', ...dados };
+      otimista(() => colabs.push(temp), () => rpc('gestao.colaborador.salvar', dados), r => Object.assign(temp, r), `${nome} adicionado`);
+    };
+    $$('[data-ren]', el).forEach(b => b.onclick = () => {
+      const eq = equipes.find(x => x.id === b.dataset.ren), nome = prompt('Novo nome da equipe:', eq.nome);
+      if (nome && nome.trim()) otimista(() => { eq.nome = nome.trim(); }, () => rpc('gestao.equipe.salvar', { id: eq.id, nome: nome.trim() }));
+    });
+    $$('[data-dele]', el).forEach(b => b.onclick = () => {
+      const id = b.dataset.dele;
+      if (colabs.some(c => c.equipe_id === id)) return toast('Há colaboradores nesta equipe. Mova-os antes de excluir.', true);
+      if (confirm('Excluir esta equipe?')) otimista(() => { equipes = equipes.filter(x => x.id !== id); }, () => rpc('gestao.equipe.excluir', { id }), null, 'Equipe excluída');
+    });
+    $$('[data-inat]', el).forEach(b => b.onclick = () => {
+      const c = colabs.find(x => x.id === b.dataset.inat);
+      if (confirm('Inativar colaborador? O histórico é mantido e ele deixa de aparecer na lista de entrada.')) otimista(() => { c.ativo = false; }, () => rpc('gestao.colaborador.inativar', { id: c.id }), null, `${c.nome} inativado`);
+    });
+    $$('[data-ativ]', el).forEach(b => b.onclick = () => { const c = colabs.find(x => x.id === b.dataset.ativ); otimista(() => { c.ativo = true; }, () => rpc('gestao.colaborador.salvar', { ...c, ativo: true }), null, `${c.nome} reativado`); });
     $$('[data-exc]', el).forEach(b => b.onclick = () => {
       const c = colabs.find(x => x.id === b.dataset.exc);
-      if (confirm(`Excluir ${c.nome} de vez?\n\nAs OS futuras dele voltam para o backlog e as folgas marcadas são removidas. O histórico de apontamentos é mantido. Para só tirar do apontamento sem apagar, use “Inativar”.`))
-        acao(async () => { await rpc('gestao.colaborador.excluir', { id: c.id }); toast(`${c.nome} excluído`); });
+      if (confirm(`Excluir ${c.nome} de vez?\n\nAs OS futuras dele voltam para o backlog e as folgas marcadas são removidas. O histórico de apontamentos é mantido. Para só tirar da lista sem apagar, use “Inativar”.`))
+        otimista(() => { colabs = colabs.filter(x => x.id !== c.id); }, () => rpc('gestao.colaborador.excluir', { id: c.id }), null, `${c.nome} excluído`);
     });
     $$('[data-edit]', el).forEach(b => b.onclick = () => editar(colabs.find(x => x.id === b.dataset.edit)));
   }
@@ -75,16 +93,28 @@ const Cad = (() => {
     $('#e-x', o).onclick = $('#e-cancel', o).onclick = o.fechar;
     $('#e-form', o).onsubmit = async ev => {
       ev.preventDefault();
-      try { await rpc('gestao.colaborador.salvar', { id: c.id, ativo: c.ativo, nome: $('#e-nome', o).value, equipe_id: $('#e-eq', o).value, ...valoresRegime('e', o) }); o.fechar(); toast('Colaborador atualizado'); await carregar(); }
-      catch (e) { const er = $('#e-erro', o); er.hidden = false; er.innerHTML = icone('alerta', 's') + esc(e.message); }
+      const nome = $('#e-nome', o).value.trim();
+      if (!nome) { const er = $('#e-erro', o); er.hidden = false; er.innerHTML = icone('alerta', 's') + 'Informe o nome.'; return; }
+      const dados = { nome, equipe_id: $('#e-eq', o).value, ...valoresRegime('e', o) };
+      o.fechar();
+      otimista(() => Object.assign(c, dados), () => rpc('gestao.colaborador.salvar', { id: c.id, ativo: c.ativo, ...dados }), r => Object.assign(c, r), 'Colaborador atualizado');
     };
     $('#e-nome', o).focus();
   }
 
-  async function acao(fn) { try { await fn(); await carregar(); } catch (e) { toast(e.message, true); } }
+  // Aplica na tela na hora e confirma com o servidor por trás (se o servidor recusar, recarrega e avisa)
+  function otimista(aplicar, chamada, aoConfirmar, msg) {
+    aplicar(); desenhar(); if (msg) toast(msg);
+    chamada().then(r => {
+      if (aoConfirmar) aoConfirmar(r);
+      Cache.limparGestao(); // painel e programação dependem dos cadastros: serão buscados de novo
+      Cache.gravar('gestao.cadastros', {}, { equipes, colaboradores: colabs }); desenhar();
+    })
+      .catch(e => { toast(e.message, true); carregar(); });
+  }
   async function carregar() {
-    try { const r = await rpc('gestao.cadastros'); equipes = r.equipes; colabs = r.colaboradores; } catch (e) { return toast(e.message, true); }
-    desenhar();
+    try { await rpcSWR('gestao.cadastros', {}, r => { equipes = r.equipes; colabs = r.colaboradores; desenhar(); }, 15000); }
+    catch (e) { toast(e.message, true); }
   }
   function mount() { el = Adm.quadro('cadastros'); if (equipes.length || colabs.length) desenhar(); carregar(); }
   return { mount };

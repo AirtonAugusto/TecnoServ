@@ -35,3 +35,4 @@ window.addEventListener('hashchange', desenharRota);
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 
 desenharRota();
+Fila.esvaziar(); // envia relatórios que ficaram guardados sem internet

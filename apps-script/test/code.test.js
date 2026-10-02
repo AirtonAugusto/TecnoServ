@@ -277,3 +277,26 @@ test('sem matrícula: lista de nomes pública, entrada pelo nome e matrícula op
   assert.strictEqual(g('cadastros', {}).dados.colaboradores.find(x => x.id === c.id).matricula, '77');
   assert.strictEqual(env.rpc('publico.entrar', { matricula: '77' }).dados.perfil.nome, 'Com Mat 2', 'entrada por matrícula continua disponível se for usada');
 });
+
+test('desempenho: login já traz o painel e leitura do cache em lote', () => {
+  const env = criarAmbiente({ props: { GESTAO_SENHA: 's' } });
+  const tok = env.rpc('auth.login', { senha: 's' }).dados.token;
+  const g = (m, a) => env.rpc('gestao.' + m, { ...a, token: tok }).dados;
+  const eq = g('equipe.salvar', { nome: 'A' });
+  const c = g('colaborador.salvar', { nome: 'Zé', equipe_id: eq.id, letra: 'B' });
+  g('atividade.salvar', { os: '1', descricao: 'X', data: hoje(), colaborador_id: c.id });
+
+  const login = env.rpc('auth.login', { senha: 's', painel: { periodo: 'dia' } }).dados;
+  assert.ok(login.token);
+  assert.strictEqual(login.painel.aderencia.geral.programadas, 1);
+  assert.strictEqual(login.painel.equipes.length, 1);
+  const tudo = env.rpc('auth.login', { senha: 's', painel: { periodo: 'semana' }, tudo: true }).dados;
+  assert.strictEqual(tudo.calendario.semanas.length, 3);
+  assert.strictEqual(tudo.cadastros.colaboradores.length, 1);
+
+  env.rpc('publico.entrar', { id: c.id }); // aquece o cache de todas as tabelas
+  const l0 = env.stats.leituras, c0 = env.stats.cache;
+  assert.strictEqual(env.rpc('publico.entrar', { id: c.id }).ok, true);
+  assert.strictEqual(env.stats.leituras, l0, 'não lê a planilha');
+  assert.ok(env.stats.cache - c0 <= 3, `idas ao cache numa entrada: ${env.stats.cache - c0} (esperado ≤ 3)`);
+});

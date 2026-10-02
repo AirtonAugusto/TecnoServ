@@ -105,10 +105,12 @@ const Dash = (() => {
   async function carregar() {
     if (S.dados) el.style.opacity = .6;
     try {
-      S.dados = await rpc('gestao.painel', { periodo: S.periodo });
-      S.hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    } catch (e) { el.style.opacity = 1; return toast(e.message, true); }
-    el.style.opacity = 1; desenhar();
+      await rpcSWR('gestao.painel', { periodo: S.periodo }, d => {
+        S.dados = d; S.hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        el.style.opacity = 1; desenhar();
+      }, 20000);
+    } catch (e) { toast(e.message, true); }
+    el.style.opacity = 1;
   }
 
   function mount() {

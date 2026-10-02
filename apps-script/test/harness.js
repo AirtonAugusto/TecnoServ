@@ -6,7 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 function criarAmbiente({ props = {} } = {}) {
-  const stats = { leituras: 0 };
+  const stats = { leituras: 0, cache: 0 };
   const planilhas = {}; // nome -> matriz (linha 0 = cabeçalho)
   const arquivos = {};
   const propriedades = { ...props };
@@ -35,7 +35,7 @@ function criarAmbiente({ props = {} } = {}) {
       insertSheet: n => { planilhas[n] = []; return sheet(n); },
     }) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => propriedades[k] ?? null, setProperty: (k, v) => { propriedades[k] = v; } }) },
-    CacheService: { getScriptCache: () => ({ get: k => cacheMem[k] ?? null, put: (k, v) => { cacheMem[k] = v; }, putAll: o => { Object.assign(cacheMem, o); }, getAll: ks => Object.fromEntries(ks.filter(k => k in cacheMem).map(k => [k, cacheMem[k]])), remove: k => { delete cacheMem[k]; } }) },
+    CacheService: { getScriptCache: () => ({ get: k => { stats.cache++; return cacheMem[k] ?? null; }, put: (k, v) => { cacheMem[k] = v; }, putAll: o => { Object.assign(cacheMem, o); }, getAll: ks => (stats.cache++, 0) || Object.fromEntries(ks.filter(k => k in cacheMem).map(k => [k, cacheMem[k]])), remove: k => { delete cacheMem[k]; } }) },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ conteudo: t, setMimeType() { return this; } }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     Logger: { log() {} },

@@ -7,20 +7,22 @@
 <title>Informe de Turno — AngloGold Ashanti</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- fonte carregada sem travar a abertura da página -->
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"></noscript>
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
 <div id="app"></div>
 <noscript>Este sistema precisa de JavaScript ativado.</noscript>
-<script src="js/core.js"></script>
-<script src="js/login.js"></script>
-<script src="js/operacional.js"></script>
-<script src="js/adm.js"></script>
-<script src="js/dashboard.js"></script>
-<script src="js/programacao.js"></script>
-<script src="js/relatorios.js"></script>
-<script src="js/cadastros.js"></script>
-<script src="js/main.js"></script>
+<script defer src="js/core.js"></script>
+<script defer src="js/login.js"></script>
+<script defer src="js/operacional.js"></script>
+<script defer src="js/adm.js"></script>
+<script defer src="js/dashboard.js"></script>
+<script defer src="js/programacao.js"></script>
+<script defer src="js/relatorios.js"></script>
+<script defer src="js/cadastros.js"></script>
+<script defer src="js/main.js"></script>
 </body>
 </html>

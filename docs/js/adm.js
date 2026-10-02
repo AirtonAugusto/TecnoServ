@@ -27,8 +27,13 @@ const Adm = (() => {
         </aside>
         <main class="conteudo"><div class="in" id="adm-conteudo"></div></main>
       </div>`;
-      $('#adm-sair').onclick = () => { Sessao.sairGestao(); ir('login', 'pcm'); };
+      $('#adm-sair').onclick = () => { Cache.limparGestao(); Sessao.sairGestao(); ir('login', 'pcm'); };
       el = $('#adm-conteudo');
+      // Enquanto a pessoa olha a primeira tela, já busca as outras abas (ficam guardadas no aparelho)
+      setTimeout(() => ['gestao.calendario', 'gestao.cadastros'].forEach(m => {
+        const g = Cache.ler(m, {});
+        if (!g || Date.now() - g.ts > 60000) buscar(m, {}).catch(() => {});
+      }), 300);
     }
     $$('[data-aba]').forEach(a => { if (a.dataset.aba === aba) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     return el;

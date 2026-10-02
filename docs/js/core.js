@@ -135,7 +135,7 @@ function rpc(metodo, args) {
   carregando(1);
   return fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ metodo, args: params }), redirect: 'follow' })
     .then(r => r.json())
-    .catch(() => { throw new Error('Não foi possível falar com o servidor. Verifique a internet e tente de novo.'); })
+    .catch(() => { const e = new Error('Não foi possível falar com o servidor. Verifique a internet e tente de novo.'); e.rede = true; throw e; })
     .then(r => {
       if (r && r.ok) return r.dados;
       if (r && r.auth) { Sessao.sairGestao(); ir('login', 'pcm'); }
@@ -143,6 +143,49 @@ function rpc(metodo, args) {
     })
     .finally(() => carregando(-1));
 }
+
+/* ---------- cache no aparelho: mostra na hora o que já tem e atualiza por trás ---------- */
+const Cache = {
+  chave: (m, a) => 'c:' + m + ':' + JSON.stringify(a || {}),
+  ler(m, a) { return ls.getJSON(this.chave(m, a)); },
+  gravar(m, a, d) { try { localStorage.setItem(this.chave(m, a), JSON.stringify({ ts: Date.now(), d })); } catch (e) { /* cheio: ignora */ } },
+  limparGestao() { try { Object.keys(localStorage).filter(k => k.startsWith('c:gestao.')).forEach(k => localStorage.removeItem(k)); } catch (e) { /* ignora */ } },
+};
+// Busca no servidor e guarda no aparelho. Se a mesma busca já estiver a caminho, aproveita a mesma.
+const emVoo = {};
+function buscar(metodo, args) {
+  const k = Cache.chave(metodo, args);
+  if (!emVoo[k]) emVoo[k] = rpc(metodo, args).then(d => { Cache.gravar(metodo, args, d); return d; }).finally(() => { delete emVoo[k]; });
+  return emVoo[k];
+}
+// Entrega o guardado (se houver) imediatamente e depois a versão nova do servidor, se mudou.
+// Se o guardado tiver menos de 'fresco' ms, nem pergunta ao servidor.
+function rpcSWR(metodo, args, aoChegar, fresco = 0) {
+  const g = Cache.ler(metodo, args);
+  if (g) aoChegar(g.d, true);
+  if (g && fresco && Date.now() - g.ts < fresco) return Promise.resolve(g.d);
+  return buscar(metodo, args).then(d => {
+    if (!g || JSON.stringify(g.d) !== JSON.stringify(d)) aoChegar(d, false);
+    return d;
+  });
+}
+const hojeLocal = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+
+/* ---------- fila de envio: o relatório nunca se perde, mesmo sem internet ---------- */
+const Fila = {
+  itens: () => ls.getJSON('pcm_fila') || [],
+  igual: (a, b) => a.colaborador_id === b.colaborador_id && a.data === b.data,
+  salvar(l) { try { localStorage.setItem('pcm_fila', JSON.stringify(l)); return true; } catch (e) { return false; } },
+  colocar(p) { return this.salvar(this.itens().filter(x => !this.igual(x, p)).concat([p])); },
+  tirar(p) { this.salvar(this.itens().filter(x => !this.igual(x, p))); },
+  async enviar(p) { await rpc('publico.enviar', p); this.tirar(p); },
+  async esvaziar() {
+    for (const p of this.itens()) {
+      try { await this.enviar(p); } catch (e) { if (e.rede) return; this.tirar(p); } // recusado pelo servidor: descarta
+    }
+  },
+};
+window.addEventListener('online', () => Fila.esvaziar());
 
 /* ---------- avisos e janelas ---------- */
 let toastT;

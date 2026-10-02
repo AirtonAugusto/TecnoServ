@@ -15,12 +15,12 @@ const Login = (() => {
     if (perfil === 'campo' && $('#l-nome')) preencherNomes();
   }
 
-  // Se a pessoa já entrou antes neste aparelho, busca as tarefas enquanto ela lê a tela.
-  function prefetch() {
-    const id = ls.get('pcm_colab_id'), turno = ls.get('pcm_turno') || '';
-    if (id && !PRE) PRE = { id, turno, p: rpc('publico.entrar', { id, turno }).catch(() => null) };
-    buscarNomes();
+  // Busca as tarefas assim que o nome é escolhido (ou já na abertura, se o aparelho lembra o nome).
+  function adiantar(id) {
+    if (!id || (PRE && PRE.id === id)) return;
+    PRE = { id, p: buscar('publico.entrar', { id }).catch(() => null) };
   }
+  function prefetch() { adiantar(ls.get('pcm_colab_id')); buscarNomes(); }
 
   function opcoesNomes(sel) {
     if (!nomes) return '<option value="">Carregando nomes…</option>';
@@ -82,13 +82,20 @@ const Login = (() => {
     const rotulo = `Entrar no apontamento ${icone('seta')}`;
     ocupado(true);
     try {
-      let r = null;
-      if (PRE && PRE.id === id && PRE.turno === turno) r = await PRE.p; // já veio da busca antecipada
-      PRE = null;
-      if (!r) r = await rpc('publico.entrar', { id, turno });
       ls.set('pcm_colab_id', id); ls.set('pcm_turno', turno);
-      Sessao.entrarColab({ perfil: r.perfil, tarefas: r.tarefas });
-      ir('apontamento');
+      const ajustar = r => { if (turno) r.perfil.turno = turno; return r; }; // turno escolhido na tela (senão vale o do cadastro)
+      const novo = (PRE && PRE.id === id ? PRE.p : null) || buscar('publico.entrar', { id });
+      PRE = null;
+      const g = Cache.ler('publico.entrar', { id });
+      if (g && g.d.tarefas && g.d.tarefas.data === hojeLocal()) {
+        // Abre na hora com o que este aparelho já tem; a versão do servidor chega logo depois
+        Sessao.entrarColab(ajustar(g.d)); ir('apontamento');
+        Promise.resolve(novo).then(r => { if (r) Op.atualizar(ajustar(r)); }).catch(() => {});
+        return;
+      }
+      const r = await novo;
+      if (!r) throw new Error('Não foi possível carregar suas atividades. Tente de novo.');
+      Sessao.entrarColab(ajustar(r)); ir('apontamento');
     } catch (err) { ocupado(false, rotulo); erro(err.message); }
   }
 
@@ -99,8 +106,11 @@ const Login = (() => {
     const rotulo = `Entrar como PCM ${icone('seta')}`;
     ocupado(true);
     try {
-      const r = await rpc('auth.login', { senha });
+      const r = await rpc('auth.login', { senha, painel: { periodo: 'semana' }, tudo: true }); // já traz painel, programação e cadastros
       Sessao.entrarGestao({ token: r.token, usuario: r.usuario });
+      if (r.painel) Cache.gravar('gestao.painel', { periodo: 'semana' }, r.painel);
+      if (r.calendario) Cache.gravar('gestao.calendario', {}, r.calendario);
+      if (r.cadastros) Cache.gravar('gestao.cadastros', {}, r.cadastros);
       ir('aderencia');
     } catch (err) { ocupado(false, rotulo); erro(err.message); }
   }
@@ -110,7 +120,7 @@ const Login = (() => {
     app.innerHTML = html();
     $$('[data-perfil]').forEach(b => b.onclick = () => { perfil = b.dataset.perfil; ls.set('pcm_perfil', perfil); mount(); });
     const fc = $('#f-campo'), fp = $('#f-pcm');
-    if (fc) { fc.onsubmit = entrarCampo; $('#l-nome').focus(); }
+    if (fc) { fc.onsubmit = entrarCampo; $('#l-nome').focus(); $('#l-nome').onchange = e => adiantar(e.target.value); }
     if (fp) { fp.onsubmit = entrarPcm; $('#l-senha').focus(); }
     prefetch();
   }

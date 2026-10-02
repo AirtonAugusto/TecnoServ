@@ -31,7 +31,8 @@ const Rel = (() => {
   }
 
   async function ver() {
-    try { pintar(await rpc('gestao.relatorios', { data: $('#r-data', el).value, equipe_id: $('#r-eq', el).value }), $('#r-data', el).value); }
+    const args = { data: $('#r-data', el).value, equipe_id: $('#r-eq', el).value };
+    try { await rpcSWR('gestao.relatorios', args, d => pintar(d, args.data)); }
     catch (e) { toast(e.message, true); }
   }
 
@@ -45,11 +46,13 @@ const Rel = (() => {
     </section><div id="rel-lista"></div>`;
     $('#r-ver', el).onclick = ver; $('#r-imp', el).onclick = () => window.print();
     $('#r-data', el).onchange = ver; $('#r-eq', el).onchange = ver;
-    try {
-      if (!equipes) equipes = (await rpc('gestao.cadastros')).equipes;
-      $('#r-eq', el).insertAdjacentHTML('beforeend', equipes.map(e => `<option value="${e.id}">${esc(e.nome)}</option>`).join(''));
-    } catch (e) { return toast(e.message, true); }
     ver();
+    try {
+      await rpcSWR('gestao.cadastros', {}, r => {
+        const sel = $('#r-eq', el), atual = sel.value;
+        sel.innerHTML = '<option value="">Todas as equipes</option>' + r.equipes.map(e => `<option value="${e.id}" ${e.id === atual ? 'selected' : ''}>${esc(e.nome)}</option>`).join('');
+      }, 60000);
+    } catch (e) { toast(e.message, true); }
   }
   return { mount };
 })();
